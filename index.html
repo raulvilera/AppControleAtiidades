@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d5c63">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Atividades">
 <title>Controle de Atividades</title>
 <style>
   /* Layout: cabeçalho fixo (turma, visão, atividade ou aluno) e três visões:
@@ -254,6 +260,7 @@
   <select id="planilha"></select>
   <div class="acts" style="justify-content:space-between">
     <button class="btn" type="button" id="mFecha">Fechar</button>
+    <button class="btn" type="button" id="btnConfig">Conexão</button>
     <button class="btn primary" type="button" id="btnBim">Novo bimestre</button>
   </div>
 </dialog>
@@ -293,6 +300,35 @@
   </form>
 </dialog>
 
+<script>
+/* Ponte com o Apps Script: imita google.script.run usando fetch e o token salvo neste aparelho. */
+(function(){
+  var K='cfg_api';
+  function cfg(){ try{ return JSON.parse(localStorage.getItem(K)||'null'); }catch(e){ return null; } }
+  window.configurarApi = function(){
+    var c = cfg()||{};
+    var url = prompt('Endereço do Apps Script (termina em /exec):', c.url||''); if(!url) return false;
+    var tok = prompt('Token de acesso (TOKEN_API do Code.gs):', c.token||''); if(!tok) return false;
+    try{ localStorage.setItem(K, JSON.stringify({url:url.trim(), token:tok.trim()})); }catch(e){}
+    return true;
+  };
+  function chamar(fn,args){
+    var c = cfg();
+    if(!c){ if(!window.configurarApi()) return Promise.reject(new Error('Configure o endereço e o token.')); c = cfg(); }
+    return fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:c.token,fn:fn,args:args})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if(!j.ok) throw new Error(j.erro||'Erro'); return j.dados; });
+  }
+  function nova(ok,err){
+    return new Proxy({},{get:function(t,k){
+      if(k==='withSuccessHandler') return function(f){ return nova(f,err); };
+      if(k==='withFailureHandler') return function(f){ return nova(ok,f); };
+      return function(){ chamar(k,Array.prototype.slice.call(arguments)).then(function(d){ ok&&ok(d); },function(e){ err&&err(e); }); };
+    }});
+  }
+  window.google={script:{run:nova(null,null)}};
+})();
+</script>
 <script>
 (function(){
   var $ = function(id){return document.getElementById(id);};
@@ -696,6 +732,8 @@
 
   var vsalva = ler('visao'); if(vsalva==='turma' || vsalva==='aluno' || vsalva==='atividade') estado.visao = vsalva;
   Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'), function(t){ t.setAttribute('aria-selected', t.dataset.v===estado.visao); });
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  $('btnConfig').addEventListener('click', function(){ if(window.configurarApi()){ dlgMenu.close(); estado.turma=null; iniciar(); } });
   iniciar();
 })();
 </script>
