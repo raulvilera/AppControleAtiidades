@@ -156,6 +156,7 @@
   td.v.z{color:var(--none)}
   .cs{min-width:54px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700;padding:0 6px}
   thead .cs{font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:8px 6px}
+  .grid .cf{color:#e0352b!important} .grid .cn2{color:#2f7bff!important} .grid .nt{color:var(--text,inherit)}
   .grid .cm{font-size:.7rem;color:var(--muted);font-weight:700;padding:8px 10px}
 
   /* Visão Aluno */
@@ -611,7 +612,7 @@
     ativs.forEach(function(a){
       h += '<th><button type="button" class="gh" data-col="'+a.col+'" title=""><span class="gd">'+esc(curta(a.data))+'</span><span class="gt">'+esc(a.titulo||a.tipo||'')+'</span></button></th>';
     });
-    h += '<th class="cs">Fez</th><th class="cs">Não</th><th class="cs">%</th></tr></thead><tbody>';
+    h += '<th class="cs cf">Fez</th><th class="cs cn2">Não</th><th class="cs">Nota</th><th class="cs">%</th></tr></thead><tbody>';
     d.alunos.forEach(function(al){
       var f=0, n=0;
       h += '<tr><th class="c0"><button type="button" class="gn" data-row="'+al.row+'"><span class="gnum">'+esc(String(al.num))+'</span><span class="gnm">'+esc(al.nome)+'</span></button></th>';
@@ -622,11 +623,12 @@
         else h += '<td class="v z">·</td>';
       });
       var pct = (f+n) ? Math.round(f/(f+n)*100)+'%' : '—';
-      h += '<td class="cs">'+f+'</td><td class="cs">'+n+'</td><td class="cs">'+pct+'</td></tr>';
+      var nota = (f+n) ? (Math.round(f/(f+n)*100)/10).toFixed(1).replace('.',',') : '—';
+      h += '<td class="cs cf">'+f+'</td><td class="cs cn2">'+n+'</td><td class="cs nt">'+nota+'</td><td class="cs">'+pct+'</td></tr>';
     });
     h += '</tbody><tfoot><tr><th class="c0 cm">Fez por atividade</th>';
     tot.forEach(function(t){ h += '<td class="cs">'+t+'</td>'; });
-    h += '<td class="cs"></td><td class="cs"></td><td class="cs"></td></tr></tfoot></table></div>';
+    h += '<td class="cs"></td><td class="cs"></td><td class="cs"></td><td class="cs"></td></tr></tfoot></table></div>';
     var g = $('grade');
     var pos = $('gridwrap') ? {l:$('gridwrap').scrollLeft, t:$('gridwrap').scrollTop} : null;
     g.innerHTML = h;
