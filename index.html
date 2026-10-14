@@ -103,9 +103,9 @@
   .nome{font-weight:700;font-size:.95rem;line-height:1.25;overflow-wrap:anywhere;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
   .opts{grid-column:1 / -1;display:flex;justify-content:center;gap:clamp(24px,10vw,48px)}
   li.al .opts{position:relative;gap:56px;background:#000;border-radius:20px;padding:7px 8px;width:fit-content;margin:0 auto;justify-self:center;box-shadow:inset 0 3px 8px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.22)}
-  li.al .opts::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:6px;transform:translateX(-50%);pointer-events:none;background:linear-gradient(180deg,#8fd0ff 0%,#2f6df0 50%,#0b2a66 100%);box-shadow:0 0 8px rgba(94,178,255,.5)}
+  li.al .opts::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:14px;transform:translateX(-50%);pointer-events:none;background:linear-gradient(180deg,#8fd0ff 0%,#2f6df0 50%,#0b2a66 100%);box-shadow:0 0 8px rgba(94,178,255,.5)}
   /* curvas arredondadas que ligam o filete ao fundo preto, em cima e embaixo */
-  li.al .opts::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:38px;transform:translateX(-50%);pointer-events:none;background-repeat:no-repeat;background-size:16px 16px;
+  li.al .opts::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:46px;transform:translateX(-50%);pointer-events:none;background-repeat:no-repeat;background-size:16px 16px;
     background-image:radial-gradient(circle at 0 100%,transparent 15.5px,#8fd0ff 16px),radial-gradient(circle at 100% 100%,transparent 15.5px,#8fd0ff 16px),radial-gradient(circle at 0 0,transparent 15.5px,#0b2a66 16px),radial-gradient(circle at 100% 0,transparent 15.5px,#0b2a66 16px);
     background-position:left top,right top,left bottom,right bottom}
   li.al .opt{flex:0 0 100px;white-space:nowrap;min-height:44px;color:rgba(255,255,255,.9);background:linear-gradient(160deg,rgba(255,255,255,.38) 0%,rgba(255,255,255,.2) 100%);border-top:1px solid rgba(255,255,255,.45);transform:translateY(-4px);transition:transform .12s ease,box-shadow .12s ease;box-shadow:0 18px 18px -4px rgba(0,0,0,.85),0 8px 10px rgba(0,0,0,.6),0 4px 0 #04122e,0 5px 0 rgba(255,255,255,.12),inset 0 2px 0 rgba(255,255,255,.5)}
@@ -125,8 +125,8 @@
   .opt[aria-pressed=true]{transform:translateY(1px);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25);
     box-shadow:inset 5px 5px 11px rgba(0,0,0,.38),inset -4px -4px 9px rgba(255,255,255,.18)}
   .opt[aria-pressed=true] svg{transform:scale(.92)}
-  .opt.fez[aria-pressed=true]{background:linear-gradient(145deg,#0f6b3b,#1fa862)}
-  .opt.nao[aria-pressed=true]{background:linear-gradient(145deg,#9c1d16,#d6443b)}
+  .opt.fez[aria-pressed=true]{background:linear-gradient(145deg,#12c25e,#4dff9a);text-shadow:0 0 8px rgba(255,255,255,.7);filter:saturate(1.25) brightness(1.08)}
+  .opt.nao[aria-pressed=true]{background:linear-gradient(145deg,#e0241b,#ff6a5e);text-shadow:0 0 8px rgba(255,255,255,.7);filter:saturate(1.25) brightness(1.08)}
 
   /* Visão Turma: grade */
   .gkey{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.8rem;color:var(--muted);margin:0 0 8px}
