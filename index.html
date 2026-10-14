@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d5c63">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Atividades">
+<title>Controle de Atividades</title>
+<style>
+  /* Layout: cabeçalho fixo (turma, visão, atividade ou aluno) e três visões:
+     Atividade (marcar), Turma (grade completa como na planilha) e Aluno (histórico individual). */
+  :root{
+    --bg:#eaf0ef; --surface:#ffffff; --ink:#10201f; --muted:#587170; --line:#d3e0de;
+    --brand:#0d5c63; --brand-ink:#ffffff; --brand-soft:#d9eeee;
+    --ok:#157a46; --ok-bg:#e1f5e9; --ok-line:#9fd7b4;
+    --no:#b3261e; --no-bg:#fdeae8; --no-line:#efb3ae;
+    --none:#c9d6d4; --focus:#1d4ed8; --hdr:230px;
+    --shadow:0 1px 2px rgba(16,32,31,.08),0 4px 14px rgba(16,32,31,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0c1514; --surface:#142120; --ink:#e6f1ef; --muted:#93b0ad; --line:#26403d;
+      --brand:#3fc1c9; --brand-ink:#04201f; --brand-soft:#16393a;
+      --ok:#5fd18b; --ok-bg:#12301f; --ok-line:#256a42;
+      --no:#ff8b82; --no-bg:#3a1917; --no-line:#7a3631;
+      --none:#2c4643; --focus:#93c5fd;
+      --shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
+  button,select,input{font:inherit;color:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .wrap{max-width:780px;margin:0 auto;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+  .wrap.wide{max-width:1200px}
+
+  /* ---------- Cabeçalho ---------- */
+  header{position:sticky;top:0;z-index:20;background:var(--surface);box-shadow:var(--shadow)}
+  .bar{background:var(--brand);color:var(--brand-ink);padding-top:max(10px,env(safe-area-inset-top));padding-bottom:10px}
+  .bar .wrap{display:flex;align-items:center;gap:10px}
+  .logo{flex:none;width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.18);display:grid;place-items:center}
+  @media (prefers-color-scheme:dark){.logo{background:rgba(4,32,31,.18)}}
+  .ttl{min-width:0;flex:1}
+  h1{margin:0;font-size:1.05rem;line-height:1.2;font-weight:700}
+  .sub{font-size:.78rem;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .iconbtn{flex:none;width:40px;height:40px;border-radius:10px;border:0;background:rgba(255,255,255,.16);color:inherit;display:grid;place-items:center}
+  @media (prefers-color-scheme:dark){.iconbtn{background:rgba(4,32,31,.16)}}
+  .iconbtn:hover{background:rgba(255,255,255,.26)}
+  .iconbtn svg{width:20px;height:20px}
+  .spin svg{animation:giro .9s linear infinite}
+  @keyframes giro{to{transform:rotate(360deg)}}
+
+  .ctx{padding-top:12px;padding-bottom:8px;display:grid;gap:8px}
+  @media (min-width:640px){.ctx{grid-template-columns:240px 1fr}}
+  .field{display:grid;gap:3px;min-width:0}
+  .field > span{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .sel{display:flex;gap:8px}
+  select,input[type=search],input[type=text],input[type=date]{width:100%;min-height:46px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0}
+  select{appearance:none;-webkit-appearance:none;padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23587170' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+  .addbtn{flex:none;width:46px;min-height:46px;border-radius:12px;border:1px solid var(--brand);background:var(--brand-soft);color:var(--brand);font-size:1.5rem;line-height:1;font-weight:600}
+
+  .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:var(--bg);border-radius:12px;margin-bottom:10px}
+  .tab{min-height:40px;border:0;border-radius:9px;background:transparent;font-weight:600;color:var(--muted)}
+  .tab[aria-selected=true]{background:var(--surface);color:var(--brand);box-shadow:var(--shadow)}
+
+  .prog{padding-bottom:12px}
+  .track{height:10px;border-radius:99px;background:var(--none);overflow:hidden;display:flex}
+  .track i{display:block;height:100%;transition:width .25s ease}
+  .track .f{background:var(--ok)}
+  .track .n{background:var(--no)}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chip{min-height:36px;padding:4px 12px;border-radius:99px;border:1px solid var(--line);background:var(--surface);font-size:.85rem;display:inline-flex;align-items:center;gap:6px}
+  .chip b{font-variant-numeric:tabular-nums}
+  .chip .d{width:9px;height:9px;border-radius:50%;background:var(--none)}
+  .chip.cf .d{background:var(--ok)} .chip.cn .d{background:var(--no)}
+  .chip[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+  .chip[aria-pressed=true] .d{box-shadow:0 0 0 2px var(--brand-ink)}
+
+  /* ---------- Conteúdo ---------- */
+  main{padding-top:12px;padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+  main.semdock{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+  .search{margin-bottom:10px}
+  ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  li.al{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}
+  li.al.fez{background:var(--ok-bg);border-color:var(--ok-line)}
+  li.al.nao{background:var(--no-bg);border-color:var(--no-line)}
+  .num{width:34px;height:34px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:.8rem;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  li.al.fez .num{background:var(--ok);color:#fff} li.al.nao .num{background:var(--no);color:#fff}
+  .nome{font-weight:600;font-size:.95rem;line-height:1.25;overflow-wrap:anywhere}
+  .opts{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  @media (min-width:640px){
+    li.al{grid-template-columns:auto 1fr 250px}
+    li.al .opts{grid-column:auto}
+  }
+  .opt{min-height:48px;border-radius:12px;border:2px solid var(--line);background:var(--surface);font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted)}
+  .opt svg{width:20px;height:20px}
+  .opt.fez[aria-pressed=true]{background:var(--ok);border-color:var(--ok);color:#fff}
+  .opt.nao[aria-pressed=true]{background:var(--no);border-color:var(--no);color:#fff}
+  .opt:active{transform:scale(.98)}
+
+  /* Visão Turma: grade */
+  .gkey{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.8rem;color:var(--muted);margin:0 0 8px}
+  .gkey span{display:inline-flex;align-items:center;gap:5px}
+  .gk{width:20px;height:20px;border-radius:6px;display:inline-grid;place-items:center;font-size:.75rem;font-weight:800}
+  .gk.f{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-line)}
+  .gk.n{background:var(--no-bg);color:var(--no);border:1px solid var(--no-line)}
+  .gk.z{background:var(--bg);border:1px solid var(--line)}
+  .gridwrap{overflow:auto;max-height:calc(100dvh - var(--hdr) - 70px);background:var(--surface);border:1px solid var(--line);border-radius:14px;-webkit-overflow-scrolling:touch}
+  table.grid{border-collapse:separate;border-spacing:0;font-size:.82rem;min-width:100%}
+  .grid th,.grid td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;background:var(--surface)}
+  .grid thead th{position:sticky;top:0;z-index:3;vertical-align:bottom}
+  .grid .c0{position:sticky;left:0;z-index:2;min-width:132px;max-width:132px;text-align:left}
+  @media (min-width:640px){.grid .c0{min-width:190px;max-width:190px}}
+  .grid thead .c0{z-index:5}
+  .grid tfoot th,.grid tfoot td{position:sticky;bottom:0;z-index:3;border-top:2px solid var(--line)}
+  .grid tfoot .c0{z-index:5}
+  .gh{display:flex;flex-direction:column;align-items:center;gap:2px;width:68px;min-height:64px;padding:6px 4px;border:0;background:transparent;text-align:center;line-height:1.15}
+  .gh .gd{font-weight:800;font-variant-numeric:tabular-nums;color:var(--brand)}
+  .gh .gt{font-size:.68rem;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+  .gn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;background:transparent;text-align:left}
+  .gn .gnum{flex:none;width:24px;text-align:right;color:var(--muted);font-size:.75rem;font-variant-numeric:tabular-nums}
+  .gn .gnm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  td.v{text-align:center;height:38px;min-width:68px;font-weight:800}
+  td.v.f{background:var(--ok-bg);color:var(--ok)}
+  td.v.n{background:var(--no-bg);color:var(--no)}
+  td.v.z{color:var(--none)}
+  .cs{min-width:54px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700;padding:0 6px}
+  thead .cs{font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:8px 6px}
+  .grid .cm{font-size:.7rem;color:var(--muted);font-weight:700;padding:8px 10px}
+
+  /* Visão Aluno */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
+  .card h2{margin:0 0 2px;font-size:1.1rem;line-height:1.25;overflow-wrap:anywhere}
+  .card .tn{font-size:.82rem;color:var(--muted);margin-bottom:12px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+  .st{background:var(--bg);border-radius:12px;padding:8px 6px;text-align:center}
+  .st b{display:block;font-size:1.25rem;font-variant-numeric:tabular-nums;line-height:1.2}
+  .st span{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .st.f b{color:var(--ok)} .st.n b{color:var(--no)}
+  .extras{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:.82rem;color:var(--muted)}
+  .extras b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .hist-t{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 8px}
+  li.hi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+  li.hi.fez{background:var(--ok-bg);border-color:var(--ok-line)}
+  li.hi.nao{background:var(--no-bg);border-color:var(--no-line)}
+  .hd{font-weight:800;font-variant-numeric:tabular-nums;color:var(--brand);font-size:.9rem}
+  .ht{font-size:.88rem;line-height:1.3;overflow-wrap:anywhere}
+  .ht small{display:block;color:var(--muted);font-size:.75rem}
+  .hi .opts{grid-column:auto;display:flex;gap:6px}
+  .hi .opt{min-height:44px;min-width:44px;padding:0 10px;gap:6px;font-size:.85rem}
+  .hi .opt span{display:none}
+  @media (min-width:520px){.hi .opt span{display:inline}}
+
+  .sk{height:112px;border-radius:14px;background:linear-gradient(90deg,var(--line) 0%,var(--surface) 50%,var(--line) 100%);background-size:200% 100%;animation:brilho 1.2s ease-in-out infinite;opacity:.6}
+  @media (min-width:640px){.sk{height:68px}}
+  @keyframes brilho{from{background-position:200% 0}to{background-position:-200% 0}}
+  @media (prefers-reduced-motion:reduce){.sk,.spin svg{animation:none}.track i{transition:none}}
+
+  .msg{padding:40px 12px;text-align:center;color:var(--muted)}
+  .msg strong{display:block;color:var(--ink);font-size:1.05rem;margin-bottom:4px}
+  .error{margin:0 0 12px;padding:12px 14px;border-radius:12px;background:var(--no-bg);color:var(--no);border:1px solid var(--no-line)}
+
+  /* ---------- Rodapé de ação ---------- */
+  .dock{position:fixed;left:0;right:0;bottom:0;z-index:19;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(16,32,31,.08);padding-top:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+  .dock .in{max-width:780px;margin:0 auto}
+  .btn{min-height:48px;padding:8px 16px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+  .btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+  .btn.block{width:100%}
+  .btn:disabled{opacity:.5;cursor:default}
+
+  /* ---------- Janelas ---------- */
+  dialog{border:0;border-radius:18px;background:var(--surface);color:var(--ink);padding:20px;width:min(460px,calc(100vw - 28px));box-shadow:0 20px 50px rgba(0,0,0,.35)}
+  dialog::backdrop{background:rgba(5,15,14,.55)}
+  dialog h2{margin:0 0 6px;font-size:1.15rem}
+  dialog p{margin:0 0 10px;font-size:.88rem;color:var(--muted)}
+  label{display:block;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
+  .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:.9rem;z-index:30;max-width:calc(100vw - 28px);box-shadow:var(--shadow)}
+</style>
+</head>
+<body>
+<header id="hdr">
+  <div class="bar">
+    <div class="wrap">
+      <div class="logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h9"/></svg>
+      </div>
+      <div class="ttl">
+        <h1>Controle de Atividades</h1>
+        <div class="sub" id="sub" aria-live="polite">Conectando à planilha...</div>
+      </div>
+      <button class="iconbtn" id="btnAtualiza" type="button" aria-label="Atualizar dados da planilha" title="Atualizar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button class="iconbtn" id="btnMenu" type="button" aria-label="Planilhas e bimestres" title="Planilhas e bimestres">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="wrap" id="hwrap">
+    <div class="ctx">
+      <div class="field"><span>Turma</span><select id="turma" aria-label="Turma"></select></div>
+      <div class="field" id="fAtiv">
+        <span>Atividade</span>
+        <div class="sel">
+          <select id="atividade" aria-label="Atividade"></select>
+          <button class="addbtn" id="btnNova" type="button" aria-label="Nova atividade" title="Nova atividade">+</button>
+        </div>
+      </div>
+      <div class="field" id="fAluno" hidden>
+        <span>Aluno</span>
+        <div class="sel">
+          <button class="addbtn" id="btnPrev" type="button" aria-label="Aluno anterior" title="Aluno anterior" style="font-size:1.2rem">‹</button>
+          <select id="aluno" aria-label="Aluno"></select>
+          <button class="addbtn" id="btnNext" type="button" aria-label="Próximo aluno" title="Próximo aluno" style="font-size:1.2rem">›</button>
+        </div>
+      </div>
+    </div>
+    <div class="tabs" role="tablist" id="tabs">
+      <button class="tab" role="tab" data-v="atividade" aria-selected="true" type="button">Atividade</button>
+      <button class="tab" role="tab" data-v="turma" aria-selected="false" type="button">Turma</button>
+      <button class="tab" role="tab" data-v="aluno" aria-selected="false" type="button">Aluno</button>
+    </div>
+    <div class="prog" id="prog" hidden>
+      <div class="track" role="img" aria-label="Progresso da atividade"><i class="f" id="bF"></i><i class="n" id="bN"></i></div>
+      <div class="legend" id="legend">
+        <button class="chip" data-f="todos" aria-pressed="true" type="button">Todos <b id="cTodos">0</b></button>
+        <button class="chip cf" data-f="FEZ" aria-pressed="false" type="button"><span class="d"></span>Fez <b id="cFez">0</b></button>
+        <button class="chip cn" data-f="NÃO FEZ" aria-pressed="false" type="button"><span class="d"></span>Não fez <b id="cNao">0</b></button>
+        <button class="chip" data-f="" aria-pressed="false" type="button"><span class="d"></span>Sem registro <b id="cSem">0</b></button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <div id="erro" class="error" hidden></div>
+  <input class="search" type="search" id="busca" placeholder="Buscar aluno pelo nome" aria-label="Buscar aluno" hidden>
+  <ul id="lista"></ul>
+  <div id="grade" hidden></div>
+  <div id="ficha" hidden></div>
+  <div class="msg" id="vazio" hidden></div>
+</main>
+
+<div class="dock" id="dock" hidden>
+  <div class="in"><button class="btn primary block" id="btnTodosFez" type="button">Marcar sem registro como FEZ</button></div>
+</div>
+
+<dialog id="dlgMenu">
+  <h2>Planilha em uso</h2>
+  <p>Cada bimestre fica em uma planilha. Escolha qual abrir ou comece um bimestre novo.</p>
+  <label for="planilha">Planilha</label>
+  <select id="planilha"></select>
+  <div class="acts" style="justify-content:space-between">
+    <button class="btn" type="button" id="mFecha">Fechar</button>
+    <button class="btn" type="button" id="btnConfig">Conexão</button>
+    <button class="btn primary" type="button" id="btnBim">Novo bimestre</button>
+  </div>
+</dialog>
+
+<dialog id="dlgBim">
+  <form id="formBim" method="dialog">
+    <h2>Novo bimestre</h2>
+    <p>O app copia a planilha atual e apaga só as atividades e os registros FEZ / NÃO FEZ das turmas. Alunos, abas de configuração e totais ficam como estão. A planilha atual continua guardada no seu Drive.</p>
+    <label for="bNome">Nome da nova planilha</label>
+    <input type="text" id="bNome" autocomplete="off">
+    <div class="acts">
+      <button class="btn" type="button" id="bCancela">Cancelar</button>
+      <button class="btn primary" type="submit" id="bSalva">Criar bimestre</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg">
+  <form id="formNova" method="dialog">
+    <h2>Nova atividade</h2>
+    <label for="nTipo">Tipo</label>
+    <select id="nTipo">
+      <option>Caderno</option>
+      <option>Livro do Estudante</option>
+      <option>Questões</option>
+      <option>Prova</option>
+      <option>Outro</option>
+    </select>
+    <label for="nTitulo">Título</label>
+    <input type="text" id="nTitulo" placeholder="Ex.: Aula 3 - Sistema Respiratório" autocomplete="off">
+    <label for="nData">Data</label>
+    <input type="date" id="nData">
+    <div class="acts">
+      <button class="btn" type="button" id="nCancela">Cancelar</button>
+      <button class="btn primary" type="submit" id="nSalva">Criar atividade</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* Ponte com o Apps Script: imita google.script.run usando fetch e o token salvo neste aparelho. */
+(function(){
+  var K='cfg_api';
+  function cfg(){ try{ return JSON.parse(localStorage.getItem(K)||'null'); }catch(e){ return null; } }
+  window.configurarApi = function(){
+    var c = cfg()||{};
+    var url = prompt('Endereço do Apps Script (termina em /exec):', c.url||''); if(!url) return false;
+    var tok = prompt('Token de acesso (TOKEN_API do Code.gs):', c.token||''); if(!tok) return false;
+    try{ localStorage.setItem(K, JSON.stringify({url:url.trim(), token:tok.trim()})); }catch(e){}
+    return true;
+  };
+  function chamar(fn,args){
+    var c = cfg();
+    if(!c){ if(!window.configurarApi()) return Promise.reject(new Error('Configure o endereço e o token.')); c = cfg(); }
+    return fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:c.token,fn:fn,args:args})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if(!j.ok) throw new Error(j.erro||'Erro'); return j.dados; });
+  }
+  function nova(ok,err){
+    return new Proxy({},{get:function(t,k){
+      if(k==='withSuccessHandler') return function(f){ return nova(f,err); };
+      if(k==='withFailureHandler') return function(f){ return nova(ok,f); };
+      return function(){ chamar(k,Array.prototype.slice.call(arguments)).then(function(d){ ok&&ok(d); },function(e){ err&&err(e); }); };
+    }});
+  }
+  window.google={script:{run:nova(null,null)}};
+})();
+</script>
+<script>
+(function(){
+  var $ = function(id){return document.getElementById(id);};
+  var run = function(fn){
+    var args = Array.prototype.slice.call(arguments,1);
+    return new Promise(function(ok,err){
+      var r = google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){err(e&&e.message?e:new Error(String(e)));});
+      r[fn].apply(r,args);
+    });
+  };
+  var estado = { turma:null, dados:null, col:null, filtro:'todos', busca:'', pendentes:0, edicoes:0, planilha:'', visao:'atividade', alunoRow:null, ativs:[] };
+
+  var ICO_OK  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  var ICO_NO  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  function guardar(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  function ler(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function hora(){ var d=new Date(); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+  function norm(s){ return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
+  function curta(d){ return d ? d.split('/').slice(0,2).join('/') : '—'; }
+
+  function sub(txt){ $('sub').textContent = (estado.planilha ? estado.planilha+' · ' : '') + txt; }
+  function girando(on){ $('btnAtualiza').classList.toggle('spin', !!on); }
+  function toast(msg){
+    var t = document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 2800);
+  }
+  function mostrarErro(msg){ var e = $('erro'); e.textContent = msg; e.hidden = !msg; }
+  function mensagem(titulo, texto){
+    var v = $('vazio'); v.innerHTML = '<strong></strong><span></span>';
+    v.firstChild.textContent = titulo; v.lastChild.textContent = texto || ''; v.hidden = false;
+  }
+  function medirCabecalho(){ document.documentElement.style.setProperty('--hdr', $('hdr').offsetHeight+'px'); }
+  window.addEventListener('resize', medirCabecalho);
+
+  function rotuloAtiv(a){ return (a.tipo? a.tipo+' · ':'') + (a.titulo||'(sem título)') + (a.data? ' · '+a.data : ''); }
+  /* Atividades em ordem de data: a mais recente primeiro (para escolher) e a mais antiga primeiro (para a grade). */
+  function ordenar(ativs, recentePrimeiro){
+    var c = ativs.slice();
+    c.sort(function(a,b){
+      if(!a.ord && !b.ord) return a.col-b.col;
+      if(!a.ord) return 1; if(!b.ord) return -1;
+      return recentePrimeiro ? (b.ord-a.ord || b.col-a.col) : (a.ord-b.ord || a.col-b.col);
+    });
+    return c;
+  }
+
+  /* ---------- Carregamento ---------- */
+  function esqueleto(){
+    var h=''; for(var i=0;i<7;i++) h+='<li class="sk"></li>';
+    $('lista').hidden=false; $('grade').hidden=true; $('ficha').hidden=true;
+    $('lista').innerHTML = h; $('vazio').hidden = true;
+  }
+  function esconderTudo(){ $('prog').hidden=true; $('busca').hidden=true; $('dock').hidden=true; medirCabecalho(); }
+
+  function carregarPlanilhas(){
+    return run('getPlanilhas').then(function(r){
+      var sel = $('planilha'); sel.innerHTML='';
+      r.planilhas.forEach(function(p){
+        var o=document.createElement('option'); o.value=p.id; o.textContent=p.nome; sel.appendChild(o);
+        if(p.id===r.ativa) estado.planilha = p.nome;
+      });
+      sel.value = r.ativa;
+      sub(estado.turma ? 'Atualizado às '+hora() : 'Conectado');
+    });
+  }
+
+  function iniciar(){
+    girando(true); sub('Carregando turmas...');
+    mostrarErro(''); esqueleto(); esconderTudo();
+    carregarPlanilhas().catch(function(){});
+    return run('getTurmas').then(function(turmas){
+      var sel = $('turma'); sel.innerHTML='';
+      if(!turmas.length){ $('lista').innerHTML=''; mensagem('Nenhuma turma encontrada','Confira se a planilha tem abas de turma.'); girando(false); sub('Sem turmas'); return; }
+      turmas.forEach(function(t){ var o=document.createElement('option'); o.value=t; o.textContent=t.trim(); sel.appendChild(o); });
+      var ult = ler('turma'); if(ult && turmas.indexOf(ult)>-1) sel.value = ult;
+      return carregarTurma(sel.value);
+    }).catch(function(e){
+      $('lista').innerHTML=''; girando(false); sub('Erro');
+      mostrarErro('Não foi possível ler a planilha: '+e.message);
+    });
+  }
+
+  function carregarTurma(nome, colAlvo, silencioso){
+    if(!silencioso){ girando(true); sub('Carregando '+nome.trim()+'...'); esqueleto(); esconderTudo(); }
+    var edicoes0 = estado.edicoes;
+    return run('getTurma', nome).then(function(d){
+      girando(false);
+      if(silencioso){
+        if(estado.turma!==nome || estado.pendentes>0 || estado.edicoes!==edicoes0) return;
+        if(JSON.stringify(d)===JSON.stringify(estado.dados)){ sub('Atualizado às '+hora()); return; }
+      }
+      var mudouTurma = estado.turma !== nome;
+      estado.turma = nome; estado.dados = d; guardar('turma', nome);
+      estado.ativs = ordenar(d.atividades, true);
+      mostrarErro('');
+      // seletor de atividades (mais recente primeiro)
+      var sel = $('atividade'); sel.innerHTML='';
+      estado.ativs.forEach(function(a){ var o=document.createElement('option'); o.value=a.col; o.textContent=rotuloAtiv(a); sel.appendChild(o); });
+      // seletor de alunos
+      var sa = $('aluno'); sa.innerHTML='';
+      d.alunos.forEach(function(al){ var o=document.createElement('option'); o.value=al.row; o.textContent=al.num+' · '+al.nome; sa.appendChild(o); });
+      var temAluno = d.alunos.some(function(a){return a.row===estado.alunoRow;});
+      if(!temAluno || mudouTurma) estado.alunoRow = d.alunos.length ? d.alunos[0].row : null;
+      if(estado.alunoRow!==null) sa.value = String(estado.alunoRow);
+
+      if(!d.atividades.length){
+        estado.col = null;
+        $('lista').innerHTML=''; esconderTudo();
+        mensagem('Nenhuma atividade nesta turma','Toque no + ao lado de Atividade para criar a primeira.');
+        sub('Conectado'); return;
+      }
+      var alvo = colAlvo || Number(ler('col:'+nome));
+      var existe = d.atividades.some(function(a){return a.col===alvo;});
+      estado.col = existe ? alvo : estado.ativs[0].col;
+      sel.value = String(estado.col);
+      desenhar(); sub('Atualizado às '+hora());
+    }).catch(function(e){
+      girando(false);
+      if(silencioso){ sub('Sem conexão com a planilha'); return; }
+      $('lista').innerHTML=''; sub('Erro');
+      mostrarErro('Não foi possível abrir esta turma: '+e.message);
+    });
+  }
+
+  /* ---------- Atualização automática ---------- */
+  var atualizando = false;
+  function atualizar(manual){
+    if(!estado.turma || atualizando || estado.pendentes>0) return;
+    if($('dlg').open || $('dlgBim').open || $('dlgMenu').open) return;
+    if(!manual && document.hidden) return;
+    atualizando = true; if(manual){ girando(true); sub('Atualizando...'); }
+    carregarTurma(estado.turma, estado.col, true).then(function(){ atualizando=false; }, function(){ atualizando=false; });
+  }
+  $('btnAtualiza').addEventListener('click', function(){ atualizar(true); });
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) atualizar(false); });
+  window.addEventListener('focus', function(){ atualizar(false); });
+  setInterval(function(){ atualizar(false); }, 30000);
+
+  /* ---------- Visões ---------- */
+  function setVisao(v){
+    estado.visao = v; guardar('visao', v);
+    Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'), function(t){ t.setAttribute('aria-selected', t.dataset.v===v); });
+    if(estado.dados) desenhar();
+  }
+  $('tabs').addEventListener('click', function(ev){
+    var b = ev.target.closest('.tab'); if(b) setVisao(b.dataset.v);
+  });
+
+  function desenhar(){
+    var d = estado.dados; if(!d) return;
+    var v = estado.visao;
+    $('fAtiv').hidden = v!=='atividade';
+    $('fAluno').hidden = v!=='aluno';
+    $('prog').hidden = v!=='atividade';
+    $('busca').hidden = v!=='atividade';
+    $('dock').hidden = v!=='atividade';
+    $('main').classList.toggle('semdock', v!=='atividade');
+    $('main').classList.toggle('wide', v==='turma');
+    $('hwrap').classList.toggle('wide', v==='turma');
+    $('lista').hidden = v!=='atividade';
+    $('grade').hidden = v!=='turma';
+    $('ficha').hidden = v!=='aluno';
+    $('vazio').hidden = true;
+    if(v==='atividade') desenharAtividade();
+    else if(v==='turma') desenharTurma();
+    else desenharAluno();
+    medirCabecalho();
+  }
+
+  function valorEm(al, col){ return al.valores[col] || ''; }
+  function alunoPorLinha(row){ return estado.dados.alunos.filter(function(a){return a.row===row;})[0]; }
+
+  /* ---------- Visão Atividade ---------- */
+  function contar(){
+    var c = {todos:0, 'FEZ':0, 'NÃO FEZ':0, '':0};
+    estado.dados.alunos.forEach(function(al){ c.todos++; c[valorEm(al, estado.col)]++; });
+    $('cTodos').textContent=c.todos; $('cFez').textContent=c['FEZ']; $('cNao').textContent=c['NÃO FEZ']; $('cSem').textContent=c[''];
+    var t = c.todos || 1;
+    $('bF').style.width = (c['FEZ']/t*100)+'%'; $('bN').style.width = (c['NÃO FEZ']/t*100)+'%';
+    return c;
+  }
+
+  function desenharAtividade(){
+    var d = estado.dados;
+    var c = contar();
+    var btn = $('btnTodosFez');
+    btn.disabled = c[''] === 0;
+    btn.textContent = c[''] ? 'Marcar '+c['']+' sem registro como FEZ' : 'Todos os alunos têm registro';
+    var q = norm(estado.busca.trim());
+    var ul = $('lista'); ul.innerHTML='';
+    var n = 0;
+    d.alunos.forEach(function(al){
+      var v = valorEm(al, estado.col);
+      if(estado.filtro!=='todos' && v!==estado.filtro) return;
+      if(q && norm(al.nome).indexOf(q)===-1) return;
+      n++;
+      var li = document.createElement('li');
+      li.className = 'al' + (v==='FEZ' ? ' fez' : v==='NÃO FEZ' ? ' nao' : '');
+      li.dataset.row = al.row;
+      li.innerHTML = '<span class="num"></span><span class="nome"></span>'+
+        '<div class="opts"><button type="button" class="opt fez" data-v="FEZ">'+ICO_OK+'Fez</button>'+
+        '<button type="button" class="opt nao" data-v="NÃO FEZ">'+ICO_NO+'Não fez</button></div>';
+      li.querySelector('.num').textContent = al.num;
+      li.querySelector('.nome').textContent = al.nome;
+      li.querySelector('.opt.fez').setAttribute('aria-pressed', v==='FEZ');
+      li.querySelector('.opt.nao').setAttribute('aria-pressed', v==='NÃO FEZ');
+      ul.appendChild(li);
+    });
+    if(!n){
+      if(!d.alunos.length) mensagem('Nenhum aluno encontrado','Esta aba não tem alunos na lista.');
+      else mensagem('Nenhum aluno neste filtro','Mude o filtro ou limpe a busca.');
+    }
+  }
+
+  /* ---------- Visão Turma (grade completa) ---------- */
+  function desenharTurma(){
+    var d = estado.dados;
+    var ativs = ordenar(d.atividades, false);
+    var tot = ativs.map(function(){ return 0; });
+    var h = '<p class="gkey"><span><i class="gk f">✓</i>Fez</span><span><i class="gk n">✕</i>Não fez</span><span><i class="gk z"></i>Sem registro</span>'+
+            '<span>Toque na data para abrir a atividade e no nome para ver o aluno.</span></p>';
+    h += '<div class="gridwrap" id="gridwrap"><table class="grid"><thead><tr><th class="c0 cm">'+d.alunos.length+' alunos · '+ativs.length+' atividades</th>';
+    ativs.forEach(function(a){
+      h += '<th><button type="button" class="gh" data-col="'+a.col+'" title=""><span class="gd">'+esc(curta(a.data))+'</span><span class="gt">'+esc(a.titulo||a.tipo||'')+'</span></button></th>';
+    });
+    h += '<th class="cs">Fez</th><th class="cs">Não</th><th class="cs">%</th></tr></thead><tbody>';
+    d.alunos.forEach(function(al){
+      var f=0, n=0;
+      h += '<tr><th class="c0"><button type="button" class="gn" data-row="'+al.row+'"><span class="gnum">'+esc(String(al.num))+'</span><span class="gnm">'+esc(al.nome)+'</span></button></th>';
+      ativs.forEach(function(a, i){
+        var v = valorEm(al, a.col);
+        if(v==='FEZ'){ f++; tot[i]++; h += '<td class="v f">✓</td>'; }
+        else if(v==='NÃO FEZ'){ n++; h += '<td class="v n">✕</td>'; }
+        else h += '<td class="v z">·</td>';
+      });
+      var pct = (f+n) ? Math.round(f/(f+n)*100)+'%' : '—';
+      h += '<td class="cs">'+f+'</td><td class="cs">'+n+'</td><td class="cs">'+pct+'</td></tr>';
+    });
+    h += '</tbody><tfoot><tr><th class="c0 cm">Fez por atividade</th>';
+    tot.forEach(function(t){ h += '<td class="cs">'+t+'</td>'; });
+    h += '<td class="cs"></td><td class="cs"></td><td class="cs"></td></tr></tfoot></table></div>';
+    var g = $('grade');
+    var pos = $('gridwrap') ? {l:$('gridwrap').scrollLeft, t:$('gridwrap').scrollTop} : null;
+    g.innerHTML = h;
+    Array.prototype.forEach.call(g.querySelectorAll('.gh'), function(b){
+      var a = ativs.filter(function(x){return x.col===Number(b.dataset.col);})[0];
+      b.title = rotuloAtiv(a);
+    });
+    if(pos){ $('gridwrap').scrollLeft = pos.l; $('gridwrap').scrollTop = pos.t; }
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  $('grade').addEventListener('click', function(ev){
+    var gh = ev.target.closest('.gh');
+    if(gh){ estado.col = Number(gh.dataset.col); $('atividade').value = String(estado.col); guardar('col:'+estado.turma, String(estado.col)); setVisao('atividade'); window.scrollTo(0,0); return; }
+    var gn = ev.target.closest('.gn');
+    if(gn){ estado.alunoRow = Number(gn.dataset.row); $('aluno').value = String(estado.alunoRow); setVisao('aluno'); window.scrollTo(0,0); }
+  });
+
+  /* ---------- Visão Aluno (histórico individual) ---------- */
+  function desenharAluno(){
+    var d = estado.dados;
+    var al = alunoPorLinha(estado.alunoRow);
+    var f = $('ficha');
+    if(!al){ f.innerHTML=''; mensagem('Nenhum aluno encontrado','Esta aba não tem alunos na lista.'); return; }
+    var ativs = ordenar(d.atividades, true);
+    var nf=0, nn=0, ns=0;
+    ativs.forEach(function(a){ var v=valorEm(al,a.col); if(v==='FEZ') nf++; else if(v==='NÃO FEZ') nn++; else ns++; });
+    var pct = (nf+nn) ? Math.round(nf/(nf+nn)*100)+'%' : '—';
+    var h = '<div class="card"><h2>'+esc(al.nome)+'</h2><div class="tn">Nº '+esc(String(al.num))+' · '+esc(estado.turma.trim())+'</div>'+
+      '<div class="track" role="img" aria-label="Fez e não fez"><i class="f" style="width:'+(ativs.length?nf/ativs.length*100:0)+'%"></i><i class="n" style="width:'+(ativs.length?nn/ativs.length*100:0)+'%"></i></div>'+
+      '<div class="stats"><div class="st f"><b>'+nf+'</b><span>Fez</span></div><div class="st n"><b>'+nn+'</b><span>Não fez</span></div><div class="st"><b>'+ns+'</b><span>Sem registro</span></div><div class="st"><b>'+pct+'</b><span>Fez</span></div></div>';
+    if(d.extrasCols && d.extrasCols.length){
+      h += '<div class="extras">';
+      d.extrasCols.forEach(function(e,i){ var v = al.extras ? al.extras[i] : ''; if(v==='' ) return; h += '<span>'+esc(e.label)+': <b>'+esc(String(v))+'</b></span>'; });
+      h += '</div>';
+    }
+    h += '</div><div class="hist-t">Histórico · mais recente primeiro</div><ul id="hist">';
+    ativs.forEach(function(a){
+      var v = valorEm(al, a.col);
+      h += '<li class="hi'+(v==='FEZ'?' fez':v==='NÃO FEZ'?' nao':'')+'" data-col="'+a.col+'">'+
+        '<div><span class="hd">'+esc(a.data||'sem data')+'</span><div class="ht">'+esc(a.titulo||'(sem título)')+'<small>'+esc(a.tipo||'')+'</small></div></div>'+
+        '<div class="opts"><button type="button" class="opt fez" data-v="FEZ" aria-pressed="'+(v==='FEZ')+'" aria-label="Fez">'+ICO_OK+'<span>Fez</span></button>'+
+        '<button type="button" class="opt nao" data-v="NÃO FEZ" aria-pressed="'+(v==='NÃO FEZ')+'" aria-label="Não fez">'+ICO_NO+'<span>Não fez</span></button></div></li>';
+    });
+    h += '</ul>';
+    f.innerHTML = h;
+  }
+
+  $('ficha').addEventListener('click', function(ev){
+    var b = ev.target.closest('.opt'); if(!b) return;
+    var li = b.closest('li'); marcar(estado.alunoRow, Number(li.dataset.col), b.dataset.v);
+  });
+  $('aluno').addEventListener('change', function(){ estado.alunoRow = Number(this.value); desenhar(); });
+  function moverAluno(delta){
+    var al = estado.dados.alunos; if(!al.length) return;
+    var i = 0; al.forEach(function(a,k){ if(a.row===estado.alunoRow) i=k; });
+    i = Math.max(0, Math.min(al.length-1, i+delta));
+    estado.alunoRow = al[i].row; $('aluno').value = String(estado.alunoRow); desenhar(); window.scrollTo(0,0);
+  }
+  $('btnPrev').addEventListener('click', function(){ moverAluno(-1); });
+  $('btnNext').addEventListener('click', function(){ moverAluno(1); });
+
+  /* ---------- Gravar ---------- */
+  function marcar(row, col, novo){
+    var al = alunoPorLinha(row); if(!al) return;
+    var atual = valorEm(al, col);
+    var valor = (atual===novo) ? '' : novo;
+    var aba = estado.turma;
+    al.valores[col] = valor; desenhar();
+    estado.edicoes++; estado.pendentes++; sub('Salvando...');
+    run('salvarRegistro', aba, row, col, valor).then(function(){
+      estado.pendentes--; if(!estado.pendentes) sub('Salvo às '+hora());
+    }).catch(function(e){
+      estado.pendentes--; al.valores[col]=atual; desenhar();
+      sub('Falha ao salvar'); toast('Não salvou: '+e.message);
+    });
+  }
+
+  $('lista').addEventListener('click', function(ev){
+    var b = ev.target.closest('.opt'); if(!b) return;
+    marcar(Number(b.closest('li').dataset.row), estado.col, b.dataset.v);
+  });
+
+  $('turma').addEventListener('change', function(){ carregarTurma(this.value); });
+  $('atividade').addEventListener('change', function(){
+    estado.col = Number(this.value); guardar('col:'+estado.turma, String(estado.col)); desenhar();
+  });
+  $('busca').addEventListener('input', function(){ estado.busca=this.value; desenhar(); });
+  $('legend').addEventListener('click', function(ev){
+    var b = ev.target.closest('.chip'); if(!b) return;
+    estado.filtro = b.dataset.f;
+    Array.prototype.forEach.call(document.querySelectorAll('#legend .chip'), function(x){ x.setAttribute('aria-pressed', x===b); });
+    desenhar();
+  });
+
+  $('btnTodosFez').addEventListener('click', function(){
+    var d = estado.dados; if(!d) return;
+    var col = estado.col, aba = estado.turma;
+    var itens = d.alunos.filter(function(a){return valorEm(a,col)==='';}).map(function(a){return {linha:a.row, valor:'FEZ'};});
+    if(!itens.length) return;
+    itens.forEach(function(it){ alunoPorLinha(it.linha).valores[col]='FEZ'; });
+    desenhar(); sub('Salvando '+itens.length+' registros...');
+    estado.edicoes++; estado.pendentes++;
+    run('salvarLote', aba, col, itens).then(function(){ estado.pendentes--; sub('Salvo às '+hora()); toast(itens.length+' alunos marcados como FEZ'); })
+    .catch(function(e){
+      estado.pendentes--;
+      itens.forEach(function(it){ alunoPorLinha(it.linha).valores[col]=''; });
+      desenhar(); sub('Falha ao salvar'); toast('Não salvou: '+e.message);
+    });
+  });
+
+  /* ---------- Planilhas e bimestres ---------- */
+  var dlgMenu = $('dlgMenu'), dlgBim = $('dlgBim'), dlg = $('dlg');
+  $('btnMenu').addEventListener('click', function(){ dlgMenu.showModal(); });
+  $('mFecha').addEventListener('click', function(){ dlgMenu.close(); });
+  $('planilha').addEventListener('change', function(){
+    var sel = this; sel.disabled = true; sub('Trocando de planilha...');
+    run('selecionarPlanilha', sel.value).then(function(){ sel.disabled=false; dlgMenu.close(); estado.turma=null; iniciar(); })
+    .catch(function(e){ sel.disabled=false; sub('Falha'); toast('Não foi possível abrir: '+e.message); carregarPlanilhas().catch(function(){}); });
+  });
+  $('btnBim').addEventListener('click', function(){
+    dlgMenu.close();
+    var o = $('planilha').options[$('planilha').selectedIndex];
+    $('bNome').value=''; $('bNome').placeholder = o ? 'Diferente de "'+o.textContent+'"' : 'Nome da planilha';
+    dlgBim.showModal(); $('bNome').focus();
+  });
+  $('bCancela').addEventListener('click', function(){ dlgBim.close(); });
+  $('formBim').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var nome = $('bNome').value.trim();
+    if(!nome){ toast('Informe o nome da nova planilha.'); return; }
+    var btn = $('bSalva'); btn.disabled = true; btn.textContent = 'Criando...'; sub('Criando novo bimestre...'); girando(true);
+    run('novoBimestre', nome).then(function(r){
+      dlgBim.close(); btn.disabled=false; btn.textContent='Criar bimestre';
+      toast('Bimestre criado: '+r.turmas+' turmas limpas'); estado.turma=null; iniciar();
+    }).catch(function(e){ btn.disabled=false; btn.textContent='Criar bimestre'; girando(false); sub('Falha'); toast('Não foi possível criar: '+e.message); });
+  });
+
+  /* ---------- Nova atividade ---------- */
+  $('btnNova').addEventListener('click', function(){
+    if(!estado.turma) return;
+    $('nTitulo').value=''; $('nData').value = new Date().toISOString().slice(0,10);
+    dlg.showModal(); $('nTitulo').focus();
+  });
+  $('nCancela').addEventListener('click', function(){ dlg.close(); });
+  $('formNova').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var titulo = $('nTitulo').value.trim();
+    if(!titulo){ toast('Informe o título da atividade.'); return; }
+    var dv = $('nData').value; var data = dv ? dv.split('-').reverse().join('/') : '';
+    var btn = $('nSalva'); btn.disabled = true; sub('Criando atividade...');
+    run('novaAtividade', estado.turma, $('nTipo').value, titulo, data).then(function(d){
+      dlg.close(); btn.disabled=false;
+      var achada = d.atividades.filter(function(a){return a.titulo===titulo && a.data===data;})[0] || d.atividades[d.atividades.length-1];
+      estado.visao = 'atividade';
+      return carregarTurma(estado.turma, achada.col).then(function(){ setVisao('atividade'); toast('Atividade criada'); });
+    }).catch(function(e){ btn.disabled=false; sub('Falha'); toast('Não foi possível criar: '+e.message); });
+  });
+
+  var vsalva = ler('visao'); if(vsalva==='turma' || vsalva==='aluno' || vsalva==='atividade') estado.visao = vsalva;
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'), function(t){ t.setAttribute('aria-selected', t.dataset.v===estado.visao); });
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  $('btnConfig').addEventListener('click', function(){ if(window.configurarApi()){ dlgMenu.close(); estado.turma=null; iniciar(); } });
+  iniciar();
+})();
+</script>
+</body>
+</html>
