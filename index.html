@@ -95,6 +95,8 @@
   main.semdock{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
   .search{margin-bottom:10px}
   ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  ul#lista{gap:18px}
+  .gn{padding-top:13px!important;padding-bottom:13px!important}
   li.al{background:var(--grad);color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:18px;padding:12px;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;box-shadow:0 8px 20px rgba(11,42,102,.32)}
   li.al.fez{background:linear-gradient(rgba(31,168,98,.26),rgba(31,168,98,.26)),var(--grad);border-color:rgba(95,209,139,.7)}
   li.al.nao{background:linear-gradient(rgba(214,68,59,.26),rgba(214,68,59,.26)),var(--grad);border-color:rgba(255,139,130,.7)}
@@ -282,12 +284,26 @@
   <p>Cada bimestre fica em uma planilha. Escolha qual abrir ou comece um bimestre novo.</p>
   <label for="planilha">Planilha</label>
   <select id="planilha"></select>
+  <div class="acts"><button class="btn block" type="button" id="btnAluno">+ Novo aluno nesta turma</button></div>
   <div class="acts" style="justify-content:space-between">
     <button class="btn" type="button" id="mFecha">Fechar</button>
     <button class="btn" type="button" id="btnSom">Som</button>
     <button class="btn" type="button" id="btnConfig">Conexão</button>
     <button class="btn primary" type="button" id="btnBim">Novo bimestre</button>
   </div>
+</dialog>
+
+<dialog id="dlgAluno">
+  <form id="formAluno" method="dialog">
+    <h2>Novo aluno</h2>
+    <p>O aluno entra no fim da lista da turma aberta e também é acrescentado na planilha.</p>
+    <label for="aNome">Nome completo</label>
+    <input type="text" id="aNome" autocomplete="off">
+    <div class="acts">
+      <button class="btn" type="button" id="aCancela">Cancelar</button>
+      <button class="btn primary" type="submit" id="aSalva">Adicionar</button>
+    </div>
+  </form>
 </dialog>
 
 <dialog id="dlgBim">
@@ -515,7 +531,7 @@
   var atualizando = false;
   function atualizar(manual){
     if(!estado.turma || atualizando || estado.pendentes>0) return;
-    if($('dlg').open || $('dlgBim').open || $('dlgMenu').open) return;
+    if($('dlg').open || $('dlgBim').open || $('dlgMenu').open || $('dlgAluno').open) return;
     if(!manual && document.hidden) return;
     atualizando = true; if(manual){ girando(true); sub('Atualizando...'); }
     carregarTurma(estado.turma, estado.col, true).then(function(){ atualizando=false; }, function(){ atualizando=false; });
@@ -767,6 +783,24 @@
       dlgBim.close(); btn.disabled=false; btn.textContent='Criar bimestre';
       toast('Bimestre criado: '+r.turmas+' turmas limpas'); estado.turma=null; iniciar();
     }).catch(function(e){ btn.disabled=false; btn.textContent='Criar bimestre'; girando(false); sub('Falha'); toast('Não foi possível criar: '+e.message); });
+  });
+
+  /* ---------- Novo aluno ---------- */
+  var dlgAluno = $('dlgAluno');
+  $('btnAluno').addEventListener('click', function(){
+    if(!estado.turma){ toast('Abra uma turma primeiro.'); return; }
+    dlgMenu.close(); $('aNome').value=''; dlgAluno.showModal(); $('aNome').focus();
+  });
+  $('aCancela').addEventListener('click', function(){ dlgAluno.close(); });
+  $('formAluno').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var nome = $('aNome').value.trim();
+    if(!nome){ toast('Informe o nome do aluno.'); return; }
+    var btn = $('aSalva'); btn.disabled = true; sub('Adicionando aluno...');
+    run('novoAluno', estado.turma, nome).then(function(){
+      dlgAluno.close(); btn.disabled=false;
+      return carregarTurma(estado.turma).then(function(){ toast('Aluno adicionado'); });
+    }).catch(function(e){ btn.disabled=false; sub('Falha'); toast('Não foi possível adicionar: '+e.message); });
   });
 
   /* ---------- Nova atividade ---------- */
