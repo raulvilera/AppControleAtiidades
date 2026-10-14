@@ -510,6 +510,8 @@
     if(!silencioso){ girando(true); sub('Carregando '+nome.trim()+'...'); esqueleto(); esconderTudo(); }
     var edicoes0 = estado.edicoes;
     return run('getTurma', nome).then(function(d){
+      // ignora linhas que não são alunos (ex.: registros com data/hora abaixo da lista)
+      d.alunos = (d.alunos||[]).filter(function(al){ return /^\d{1,3}$/.test(String(al.num).trim()); });
       girando(false);
       if(silencioso){
         if(estado.turma!==nome || estado.pendentes>0 || estado.edicoes!==edicoes0) return;
