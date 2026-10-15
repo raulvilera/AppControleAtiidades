@@ -403,8 +403,8 @@ function linhaTitulo_(aba, L) {
 
 /** Grava o título no cabeçalho, desfazendo células mescladas se necessário, e confere se ficou gravado. */
 function gravarTitulo_(aba, L, coluna, titulo) {
-  if (!titulo) return;   // título em branco é permitido
   var lt = linhaTitulo_(aba, L);
+  if (!lt && !titulo) return;   // sem linha de título e nada a gravar
   if (!lt) throw new Error('Esta aba não tem linha de título no cabeçalho (o cabeçalho tem só tipo e data).');
   var cel0 = aba.getRange(lt, coluna);
   try {
@@ -416,6 +416,7 @@ function gravarTitulo_(aba, L, coluna, titulo) {
   } catch (e) { /* sem mesclagem */ }
   var cel = aba.getRange(lt, coluna);
   try { if (cel.getMergedRanges().length && cel.getMergedRanges()[0].getRow() !== lt) cel.breakApart(); } catch (e) { /* ok */ }
+  if (!titulo) { cel.clearContent(); SpreadsheetApp.flush(); return; }   // título apagado
   cel.setNumberFormat('@');
   cel.setValue(String(titulo).trim());
   SpreadsheetApp.flush();
