@@ -389,6 +389,7 @@
     <input type="text" id="nTitulo" placeholder="Opcional - pode ficar em branco" autocomplete="off">
     <label for="nData">Data</label>
     <input type="date" id="nData">
+    <button class="btn" type="button" id="nLimpaData" style="margin-top:6px">Limpar data (deixar sem data)</button>
     <div class="acts">
       <button class="btn" type="button" id="nCancela">Cancelar</button>
       <button class="btn primary" type="submit" id="nSalva">Criar atividade</button>
@@ -995,6 +996,7 @@
     $('nData').value = m ? ((m[3]? (m[3].length===2?'20'+m[3]:m[3]) : String(new Date().getFullYear()))+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2)) : '';
     dlg.showModal(); $('nTitulo').focus();
   });
+  $('nLimpaData').addEventListener('click', function(){ $('nData').value=''; });
   $('nCancela').addEventListener('click', function(){ dlg.close(); });
   $('formNova').addEventListener('submit', function(ev){
     ev.preventDefault();
