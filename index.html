@@ -964,7 +964,7 @@
         calSel = null; resumoCal(); desenharCal(); dlgCal.close();
         var at = ((estado.dados && estado.dados.atividades) || []).filter(function(x){ return x.col===estado.col; })[0];
         if(at && at.data){
-          if(confirm('Remover também a data da atividade aberta na planilha?')){
+          {
             var colD = estado.col; sub('Removendo a data...');
             run('editarAtividade', estado.turma, colD, at.tipo||'', at.titulo||'', '').then(function(){
               return carregarTurma(estado.turma, colD).then(function(){ toast('Data removida da planilha'); });
