@@ -269,6 +269,7 @@
         <span>Atividade</span>
         <div class="sel">
           <select id="atividade" aria-label="Atividade"></select>
+          <button class="addbtn" id="btnEdita" type="button" aria-label="Editar atividade" title="Editar atividade" style="font-size:1rem">✎</button>
           <button class="addbtn" id="btnNova" type="button" aria-label="Nova atividade" title="Nova atividade">+</button>
         </div>
       </div>
@@ -373,7 +374,7 @@
 
 <dialog id="dlg">
   <form id="formNova" method="dialog">
-    <h2>Nova atividade</h2>
+    <h2 id="nTituloDlg">Nova atividade</h2>
     <label for="nTipo">Tipo</label>
     <select id="nTipo">
       <option>Caderno</option>
@@ -774,7 +775,7 @@
       estado.pendentes--; if(!estado.pendentes) sub('Salvo às '+hora());
     }).catch(function(e){
       estado.pendentes--; al.valores[col]=atual; desenhar();
-      sub('Falha ao salvar'); toast('Não salvou: '+e.message);
+      sub('Falha ao salvar'); mostrarErro('Não salvou o registro: '+e.message); toast('Não salvou: '+e.message);
     });
   }
 
@@ -808,7 +809,7 @@
     .catch(function(e){
       estado.pendentes--;
       itens.forEach(function(it){ alunoPorLinha(it.linha).valores[col]=''; });
-      desenhar(); sub('Falha ao salvar'); toast('Não salvou: '+e.message);
+      desenhar(); sub('Falha ao salvar'); mostrarErro('Não salvou o registro: '+e.message); toast('Não salvou: '+e.message);
     });
   });
 
@@ -836,7 +837,7 @@
     run('novoBimestre', nome).then(function(r){
       dlgBim.close(); btn.disabled=false; btn.textContent='Criar bimestre';
       toast('Bimestre criado: '+r.turmas+' turmas limpas'); estado.turma=null; iniciar();
-    }).catch(function(e){ btn.disabled=false; btn.textContent='Criar bimestre'; girando(false); sub('Falha'); toast('Não foi possível criar: '+e.message); });
+    }).catch(function(e){ btn.disabled=false; btn.textContent='Criar bimestre'; girando(false); sub('Falha'); mostrarErro('Não foi possível criar a atividade: '+e.message); toast('Não foi possível criar: '+e.message); });
   });
 
   /* ---------- Calendário com feriados ---------- */
@@ -957,7 +958,22 @@
   /* ---------- Nova atividade ---------- */
   $('btnNova').addEventListener('click', function(){
     if(!estado.turma) return;
+    modoEdita = false; $('nTituloDlg').textContent='Nova atividade'; $('nSalva').textContent='Criar atividade';
     $('nTitulo').value=''; $('nData').value = new Date().toISOString().slice(0,10);
+    dlg.showModal(); $('nTitulo').focus();
+  });
+  var modoEdita = false;
+  $('btnEdita').addEventListener('click', function(){
+    if(!estado.turma || estado.col==null) return;
+    var a = ((estado.dados && estado.dados.atividades) || []).filter(function(x){ return x.col===estado.col; })[0];
+    if(!a) return;
+    modoEdita = true; $('nTituloDlg').textContent='Editar atividade'; $('nSalva').textContent='Salvar alterações';
+    var st = $('nTipo'), tem = Array.prototype.some.call(st.options, function(o){ return o.value===a.tipo || o.text===a.tipo; });
+    if(a.tipo && !tem){ var o=document.createElement('option'); o.textContent=a.tipo; st.appendChild(o); }
+    st.value = a.tipo || 'Caderno';
+    $('nTitulo').value = a.titulo || '';
+    var m = String(a.data||'').match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+    $('nData').value = m ? ((m[3]? (m[3].length===2?'20'+m[3]:m[3]) : String(new Date().getFullYear()))+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2)) : '';
     dlg.showModal(); $('nTitulo').focus();
   });
   $('nCancela').addEventListener('click', function(){ dlg.close(); });
@@ -966,13 +982,23 @@
     var titulo = $('nTitulo').value.trim();
     if(!titulo){ toast('Informe o título da atividade.'); return; }
     var dv = $('nData').value; var data = dv ? dv.split('-').reverse().join('/') : '';
-    var btn = $('nSalva'); btn.disabled = true; sub('Criando atividade...');
+    var btn = $('nSalva');
+    if(modoEdita){
+      btn.disabled = true; sub('Salvando alterações...');
+      var colEd = estado.col;
+      run('editarAtividade', estado.turma, colEd, $('nTipo').value, titulo, data).then(function(){
+        dlg.close(); btn.disabled=false; modoEdita=false;
+        return carregarTurma(estado.turma, colEd).then(function(){ toast('Atividade atualizada'); });
+      }).catch(function(e){ btn.disabled=false; sub('Falha'); mostrarErro('Não salvou a atividade: '+e.message); toast('Não foi possível salvar: '+e.message); });
+      return;
+    }
+    btn.disabled = true; sub('Criando atividade...');
     run('novaAtividade', estado.turma, $('nTipo').value, titulo, data).then(function(d){
       dlg.close(); btn.disabled=false;
       var achada = d.atividades.filter(function(a){return a.titulo===titulo && a.data===data;})[0] || d.atividades[d.atividades.length-1];
       estado.visao = 'atividade';
       return carregarTurma(estado.turma, achada.col).then(function(){ setVisao('atividade'); toast('Atividade criada'); });
-    }).catch(function(e){ btn.disabled=false; sub('Falha'); toast('Não foi possível criar: '+e.message); });
+    }).catch(function(e){ btn.disabled=false; sub('Falha'); mostrarErro('Não foi possível criar a atividade: '+e.message); toast('Não foi possível criar: '+e.message); });
   });
 
   var vsalva = ler('visao'); if(vsalva==='turma' || vsalva==='aluno' || vsalva==='atividade') estado.visao = vsalva;
