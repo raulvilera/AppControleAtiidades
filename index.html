@@ -241,6 +241,8 @@
   label{display:block;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
   .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:.9rem;z-index:30;max-width:calc(100vw - 28px);box-shadow:var(--shadow)}
+.grid .nt.nta{background:#1d4ed8!important;color:#fff!important;font-weight:800!important}
+.grid .nt.ntv{background:#dc2626!important;color:#fff!important;font-weight:800!important}
 </style>
 </head>
 <body>
@@ -697,8 +699,10 @@
         else h += '<td class="v z">·</td>';
       });
       var pct = (f+n) ? Math.round(f/(f+n)*100)+'%' : '—';
-      var nota = (f+n) ? (Math.round(f/(f+n)*100)/10).toFixed(1).replace('.',',') : '—';
-      h += '<td class="cs cf">'+f+'</td><td class="cs cn2">'+n+'</td><td class="cs nt">'+nota+'</td><td class="cs">'+pct+'</td></tr>';
+      var nv = (f+n) ? Math.round(f/(f+n)*100)/10 : null;
+      var nota = nv===null ? '—' : nv.toFixed(1).replace('.',',');
+      var ncl = nv===null ? '' : (nv >= 4.5 ? ' nta' : ' ntv');   /* 4,5 já arredonda para 5,0 (azul); abaixo disso, vermelho */
+      h += '<td class="cs cf">'+f+'</td><td class="cs cn2">'+n+'</td><td class="cs nt'+ncl+'">'+nota+'</td><td class="cs">'+pct+'</td></tr>';
     });
     h += '</tbody><tfoot><tr><th class="c0 cm">Fez por atividade</th>';
     tot.forEach(function(t){ h += '<td class="cs">'+t+'</td>'; });
