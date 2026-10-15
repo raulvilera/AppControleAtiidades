@@ -326,6 +326,7 @@
   <label for="planilha">Planilha</label>
   <select id="planilha"></select>
   <div class="acts"><button class="btn block" type="button" id="btnAluno">+ Novo aluno nesta turma</button></div>
+  <div class="acts"><button class="btn block" type="button" id="btnAjusta">Ajustar letras do cabeçalho desta turma</button></div>
   <div class="acts"><button class="btn block" type="button" id="btnLimpa">Desmarcar todos desta atividade (mantém título e data)</button></div>
   <div class="acts" style="justify-content:space-between">
     <button class="btn" type="button" id="mFecha">Fechar</button>
@@ -823,6 +824,13 @@
     });
   });
 
+  $('btnAjusta').addEventListener('click', function(){
+    if(!estado.turma){ toast('Abra uma turma primeiro.'); return; }
+    var col = estado.col; dlgMenu.close(); sub('Ajustando o cabeçalho...');
+    run('ajustarCabecalhos', estado.turma).then(function(){
+      return carregarTurma(estado.turma, col).then(function(){ toast('Cabeçalho ajustado na planilha'); });
+    }).catch(function(e){ sub('Falha'); mostrarErro('Não ajustou o cabeçalho: '+e.message); toast('Não foi possível ajustar: '+e.message); });
+  });
   $('btnLimpa').addEventListener('click', function(){
     var d = estado.dados; if(!d || estado.col==null) return;
     var col = estado.col, aba = estado.turma;

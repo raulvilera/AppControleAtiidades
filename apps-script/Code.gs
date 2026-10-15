@@ -31,7 +31,7 @@ function doGet() {
  * Para trocar o token, edite a linha abaixo e crie uma nova versão da implantação. */
 var TOKEN_API = 'TROQUE_ESTE_TOKEN';
 var FUNCOES_API = ['getPlanilhas', 'selecionarPlanilha', 'getTurmas', 'getTurma', 'salvarRegistro',
-                   'salvarLote', 'novaAtividade', 'editarAtividade', 'novoAluno', 'novoBimestre'];
+                   'salvarLote', 'novaAtividade', 'editarAtividade', 'novoAluno', 'novoBimestre', 'ajustarCabecalhos'];
 
 function doPost(e) {
   var saida;
@@ -41,7 +41,7 @@ function doPost(e) {
     if (FUNCOES_API.indexOf(req.fn) < 0) throw new Error('Função não permitida.');
     var f = { getPlanilhas: getPlanilhas, selecionarPlanilha: selecionarPlanilha, getTurmas: getTurmas, getTurma: getTurma,
               salvarRegistro: salvarRegistro, salvarLote: salvarLote, novaAtividade: novaAtividade, editarAtividade: editarAtividade,
-              novoAluno: novoAluno, novoBimestre: novoBimestre }[req.fn];
+              novoAluno: novoAluno, novoBimestre: novoBimestre, ajustarCabecalhos: ajustarCabecalhos }[req.fn];
     saida = { ok: true, dados: f.apply(null, req.args || []) };
   } catch (err) {
     saida = { ok: false, erro: String(err && err.message ? err.message : err) };
@@ -420,40 +420,85 @@ function gravarTitulo_(aba, L, coluna, titulo) {
   cel.setNumberFormat('@');
   cel.setValue(String(titulo).trim());
   SpreadsheetApp.flush();
-  ajustarFonteTitulo_(aba, cel, String(titulo).trim());
   if (String(cel.getValue()).trim() !== String(titulo).trim()) {
     throw new Error('A planilha não aceitou o título na célula ' + cel.getA1Notation() + ' (célula protegida ou mesclada?).');
   }
 }
 
-/** Reduz a letra do título (mínimo 5, máximo 10) até o texto caber na célula, com quebra de linha, mantendo legível. */
-function ajustarFonteTitulo_(aba, cel, texto) {
+/** Reduz a letra da célula (máx. a 10, mín. a 5) até o texto caber, com quebra de linha. Se nem assim couber, aumenta a altura da linha. */
+function ajustarFonteCelula_(aba, cel, texto, maxFonte, minFonte) {
   try {
-    var col = cel.getColumn();
-    var larg = aba.getColumnWidth(col) - 8;
-    var alt = 0, r0 = cel.getRow(), r1 = r0;
+    texto = String(texto || '').trim();
+    if (!texto) return;
+    maxFonte = maxFonte || 10; minFonte = minFonte || 5;
+    var larg = aba.getColumnWidth(cel.getColumn()) - 8;
+    var r0 = cel.getRow(), r1 = r0;
     try {
       var mr = cel.getMergedRanges();
       if (mr.length) { r0 = mr[0].getRow(); r1 = mr[0].getLastRow(); }
     } catch (e) { /* sem mesclagem */ }
+    var alt = 0;
     for (var r = r0; r <= r1; r++) alt += aba.getRowHeight(r);
     alt -= 4;
-    var palavras = texto.split(/\s+/), escolhido = 5;
-    for (var t = 10; t >= 5; t--) {
-      var cw = t * 0.62;                       // largura média de um caractere em negrito (px)
-      var porLinha = Math.max(1, Math.floor(larg / cw));
-      var maior = 0;
-      palavras.forEach(function (p) { if (p.length > maior) maior = p.length; });
-      if (maior > porLinha) continue;          // palavra mais longa precisa caber inteira numa linha
+    var palavras = texto.split(/\s+/), maior = 0;
+    palavras.forEach(function (p) { if (p.length > maior) maior = p.length; });
+    function linhasPara(t) {
+      var porLinha = Math.max(1, Math.floor(larg / (t * 0.62)));
+      if (maior > porLinha) return 999;          // a palavra mais longa precisa caber inteira
       var linhas = 1, atual = 0;
       palavras.forEach(function (p) {
         var need = atual ? atual + 1 + p.length : p.length;
         if (need > porLinha) { linhas++; atual = p.length; } else atual = need;
       });
-      if (linhas * t * 1.3 <= alt) { escolhido = t; break; }
+      return linhas;
+    }
+    var escolhido = 0;
+    for (var t = maxFonte; t >= minFonte; t--) {
+      if (linhasPara(t) * t * 1.3 <= alt) { escolhido = t; break; }
+    }
+    if (!escolhido) {
+      escolhido = minFonte;
+      var l = linhasPara(minFonte);
+      if (l < 999) {                              // aumenta a altura da última linha da célula (máx. 70 px)
+        var falta = l * minFonte * 1.3 + 4 - (alt + 4);
+        var rr = r1, novaAlt = Math.min(70, aba.getRowHeight(rr) + Math.ceil(falta));
+        if (novaAlt > aba.getRowHeight(rr)) aba.setRowHeight(rr, novaAlt);
+      }
     }
     cel.setFontSize(escolhido).setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
   } catch (e) { /* ajuste de fonte é opcional */ }
+}
+
+/** Ajusta tipo, título e data de uma atividade para caberem nas células do cabeçalho. */
+function ajustarCabecalhoColuna_(aba, L, coluna) {
+  var lt = linhaTitulo_(aba, L);
+  var c1 = aba.getRange(1, coluna), v1 = String(c1.getValue() || '').trim();
+  if (v1) ajustarFonteCelula_(aba, c1, v1, 8, 5);
+  if (lt) {
+    var ct = aba.getRange(lt, coluna), vt = String(ct.getValue() || '').trim();
+    if (vt) ajustarFonteCelula_(aba, ct, vt, 10, 5);
+  }
+  var cd = aba.getRange(L.linhaData, coluna), vd = String(cd.getDisplayValue() || '').trim();
+  if (vd) ajustarFonteCelula_(aba, cd, vd, 8, 5);
+}
+
+/** Reajusta o cabeçalho de todas as atividades da turma (API do app). */
+function ajustarCabecalhos(nomeAba) {
+  var x = exigirAba_(nomeAba);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    analisar_(x.aba, x.L).cols.forEach(function (c) { ajustarCabecalhoColuna_(x.aba, x.L, c); });
+    SpreadsheetApp.flush();
+  } finally { lock.releaseLock(); }
+  return getTurma(nomeAba);
+}
+
+/** Para rodar no editor: reajusta o cabeçalho de todas as abas de turma. */
+function ajustarTodasAsAbas() {
+  planilha_().getSheets().forEach(function (aba) {
+    try { var L = layout_(aba); if (L) analisar_(aba, L).cols.forEach(function (c) { ajustarCabecalhoColuna_(aba, L, c); }); } catch (e) { Logger.log(aba.getName() + ': ' + e.message); }
+  });
 }
 
 /** Copia o formato do cabeçalho (fonte, quebra de linha, cores) de uma atividade vizinha para a coluna informada. */
@@ -516,6 +561,7 @@ function novaAtividade(nomeAba, tipo, titulo, data) {
     var celData = aba.getRange(L.linhaData, alvo);
     celData.setNumberFormat('@');
     celData.setValue(data || '');
+    ajustarCabecalhoColuna_(aba, L, alvo);
     // garante a lista suspensa FEZ / NÃO FEZ nas células dos alunos desta coluna
     var rngAl = aba.getRange(L.primeira, alvo, nAl, 1);
     var dvs0 = rngAl.getDataValidations();
@@ -545,6 +591,7 @@ function editarAtividade(nomeAba, coluna, tipo, titulo, data) {
     var celData = aba.getRange(L.linhaData, coluna);
     celData.setNumberFormat('@');
     celData.setValue(data || '');
+    ajustarCabecalhoColuna_(aba, L, coluna);
     SpreadsheetApp.flush();
   } finally {
     lock.releaseLock();
