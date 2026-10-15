@@ -382,6 +382,7 @@
       <option>Questões</option>
       <option>Prova</option>
       <option>Outro</option>
+      <option value="">(sem tipo)</option>
     </select>
     <label for="nTitulo">Título</label>
     <input type="text" id="nTitulo" placeholder="Opcional - pode ficar em branco" autocomplete="off">
@@ -970,7 +971,7 @@
     modoEdita = true; $('nTituloDlg').textContent='Editar atividade'; $('nSalva').textContent='Salvar alterações';
     var st = $('nTipo'), tem = Array.prototype.some.call(st.options, function(o){ return o.value===a.tipo || o.text===a.tipo; });
     if(a.tipo && !tem){ var o=document.createElement('option'); o.textContent=a.tipo; st.appendChild(o); }
-    st.value = a.tipo || 'Caderno';
+    st.value = a.tipo || '';
     $('nTitulo').value = a.titulo || '';
     var m = String(a.data||'').match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
     $('nData').value = m ? ((m[3]? (m[3].length===2?'20'+m[3]:m[3]) : String(new Date().getFullYear()))+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2)) : '';

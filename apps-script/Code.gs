@@ -31,7 +31,7 @@ function doGet() {
  * Para trocar o token, edite a linha abaixo e crie uma nova versão da implantação. */
 var TOKEN_API = 'TROQUE_ESTE_TOKEN';
 var FUNCOES_API = ['getPlanilhas', 'selecionarPlanilha', 'getTurmas', 'getTurma', 'salvarRegistro',
-                   'salvarLote', 'novaAtividade', 'novoBimestre'];
+                   'salvarLote', 'novaAtividade', 'editarAtividade', 'novoAluno', 'novoBimestre'];
 
 function doPost(e) {
   var saida;
@@ -40,7 +40,8 @@ function doPost(e) {
     if (!req.token || req.token !== TOKEN_API) throw new Error('Token inválido.');
     if (FUNCOES_API.indexOf(req.fn) < 0) throw new Error('Função não permitida.');
     var f = { getPlanilhas: getPlanilhas, selecionarPlanilha: selecionarPlanilha, getTurmas: getTurmas, getTurma: getTurma,
-              salvarRegistro: salvarRegistro, salvarLote: salvarLote, novaAtividade: novaAtividade, novoBimestre: novoBimestre }[req.fn];
+              salvarRegistro: salvarRegistro, salvarLote: salvarLote, novaAtividade: novaAtividade, editarAtividade: editarAtividade,
+              novoAluno: novoAluno, novoBimestre: novoBimestre }[req.fn];
     saida = { ok: true, dados: f.apply(null, req.args || []) };
   } catch (err) {
     saida = { ok: false, erro: String(err && err.message ? err.message : err) };
@@ -242,7 +243,7 @@ function analisar_(aba, L) {
     var nome = String(linha[1]).replace(/\s+/g, ' ').trim();
     var num = linha[0];
     if (!nome) continue;
-    if (L.numerada && (String(num).trim() === '' || isNaN(Number(num)))) continue;
+    if (L.numerada && (num instanceof Date || !/^\d{1,3}$/.test(String(num).trim()))) continue;
     if (!L.numerada) num = alunos.length + 1;
     alunos.push({ row: lin, num: num, nome: nome });
   }
@@ -254,6 +255,12 @@ function analisar_(aba, L) {
     var achou = false;
     for (var i = 0; i < alunos.length; i++) {
       if (normalizar_(dados[alunos[i].row - 1][c - 1])) { achou = true; break; }
+    }
+    if (!achou && c < L.fim) {
+      // coluna ainda sem registros, mas com tipo / título / data no cabeçalho (atividade recém-criada)
+      for (var h = 0; h < L.linhaData; h++) {
+        if (String(L.cab[h][c - 1]).trim()) { achou = true; break; }
+      }
     }
     if (!achou) {
       for (var j = 0; j < dvs.length; j++) {
@@ -277,10 +284,12 @@ function getTurma(nomeAba) {
   var A = analisar_(aba, L);
   var dados = A.dados;
 
+  var ltit = linhaTitulo_(aba, L);
   var atividades = A.cols.map(function (c) {
     var tipo = String(dados[0][c - 1]).trim();
     var titulo = '';
-    for (var r = 1; r < L.linhaData - 1; r++) {
+    if (ltit) titulo = String(dados[ltit - 1][c - 1]).trim();
+    for (var r = 1; !titulo && r < L.linhaData - 1; r++) {
       var t = String(dados[r][c - 1]).trim();
       if (t) { titulo = t; break; }
     }
@@ -333,7 +342,11 @@ function colunaGravavel_(aba, L, coluna) {
   for (var r = 0; r < L.linhaData; r++) {
     if (ehInicioDosTotais_(L.cab[r][coluna - 1])) return false;
   }
-  if (aba.getRange(L.primeira, coluna).getFormula()) return false;
+  // só bloqueia se TODAS as células dos alunos forem fórmulas (coluna calculada)
+  var nAl = L.ultimaLinha - L.primeira + 1;
+  var formulas = aba.getRange(L.primeira, coluna, nAl, 1).getFormulas();
+  var todas = formulas.length > 0 && formulas.every(function (f) { return f[0] !== ''; });
+  if (todas) return false;
   return true;
 }
 
@@ -348,7 +361,8 @@ function salvarRegistro(nomeAba, linha, coluna, valor) {
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
-    x.aba.getRange(linha, coluna).setValue(texto);
+    try { x.aba.getRange(linha, coluna).setValue(texto); }
+    catch (e) { throw new Error('A planilha recusou a gravação (célula protegida?): ' + e.message); }
     SpreadsheetApp.flush();
   } finally {
     lock.releaseLock();
@@ -375,9 +389,86 @@ function salvarLote(nomeAba, coluna, itens) {
   return true;
 }
 
+/** Linha do título das atividades: a linha (entre o tipo e a data) mais usada pelas atividades existentes. */
+function linhaTitulo_(aba, L) {
+  if (L.linhaData < 3) return 0;
+  var A = analisar_(aba, L), melhor = 2, max = -1;
+  for (var r = 2; r <= L.linhaData - 1; r++) {
+    var n = 0;
+    A.cols.forEach(function (c) { if (String(L.cab[r - 1][c - 1]).trim()) n++; });
+    if (n >= max) { max = n; melhor = r; }
+  }
+  return melhor;
+}
+
+/** Grava o título no cabeçalho, desfazendo células mescladas se necessário, e confere se ficou gravado. */
+function gravarTitulo_(aba, L, coluna, titulo) {
+  if (!titulo) return;   // título em branco é permitido
+  var lt = linhaTitulo_(aba, L);
+  if (!lt) throw new Error('Esta aba não tem linha de título no cabeçalho (o cabeçalho tem só tipo e data).');
+  var cel0 = aba.getRange(lt, coluna);
+  try {
+    var mr = cel0.getMergedRanges();
+    if (mr.length && mr[0].getRow() !== lt) {          // linha escondida dentro de uma mesclagem (ex.: C1:C2)
+      var prox = mr[0].getLastRow() + 1;
+      if (prox <= L.linhaData - 1) lt = prox;
+    }
+  } catch (e) { /* sem mesclagem */ }
+  var cel = aba.getRange(lt, coluna);
+  try { if (cel.getMergedRanges().length && cel.getMergedRanges()[0].getRow() !== lt) cel.breakApart(); } catch (e) { /* ok */ }
+  cel.setNumberFormat('@');
+  cel.setValue(String(titulo).trim());
+  SpreadsheetApp.flush();
+  ajustarFonteTitulo_(aba, cel, String(titulo).trim());
+  if (String(cel.getValue()).trim() !== String(titulo).trim()) {
+    throw new Error('A planilha não aceitou o título na célula ' + cel.getA1Notation() + ' (célula protegida ou mesclada?).');
+  }
+}
+
+/** Reduz a letra do título (mínimo 5, máximo 10) até o texto caber na célula, com quebra de linha, mantendo legível. */
+function ajustarFonteTitulo_(aba, cel, texto) {
+  try {
+    var col = cel.getColumn();
+    var larg = aba.getColumnWidth(col) - 8;
+    var alt = 0, r0 = cel.getRow(), r1 = r0;
+    try {
+      var mr = cel.getMergedRanges();
+      if (mr.length) { r0 = mr[0].getRow(); r1 = mr[0].getLastRow(); }
+    } catch (e) { /* sem mesclagem */ }
+    for (var r = r0; r <= r1; r++) alt += aba.getRowHeight(r);
+    alt -= 4;
+    var palavras = texto.split(/\s+/), escolhido = 5;
+    for (var t = 10; t >= 5; t--) {
+      var cw = t * 0.62;                       // largura média de um caractere em negrito (px)
+      var porLinha = Math.max(1, Math.floor(larg / cw));
+      var maior = 0;
+      palavras.forEach(function (p) { if (p.length > maior) maior = p.length; });
+      if (maior > porLinha) continue;          // palavra mais longa precisa caber inteira numa linha
+      var linhas = 1, atual = 0;
+      palavras.forEach(function (p) {
+        var need = atual ? atual + 1 + p.length : p.length;
+        if (need > porLinha) { linhas++; atual = p.length; } else atual = need;
+      });
+      if (linhas * t * 1.3 <= alt) { escolhido = t; break; }
+    }
+    cel.setFontSize(escolhido).setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
+  } catch (e) { /* ajuste de fonte é opcional */ }
+}
+
+/** Copia o formato do cabeçalho (fonte, quebra de linha, cores) de uma atividade vizinha para a coluna informada. */
+function formatarCabecalho_(aba, L, coluna) {
+  var A = analisar_(aba, L), ref = 0;
+  A.cols.forEach(function (c) { if (c < coluna && c > ref) ref = c; });
+  if (!ref) A.cols.forEach(function (c) { if (c > coluna && (!ref || c < ref)) ref = c; });
+  try {
+    if (ref) aba.getRange(1, ref, L.linhaData, 1).copyTo(aba.getRange(1, coluna, L.linhaData, 1), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+  } catch (e) { /* mesclagens diferentes: segue sem copiar o formato */ }
+  try { for (var r = 1; r <= L.linhaData; r++) aba.getRange(r, coluna).setWrap(true); } catch (e) { /* ok */ }
+}
+
 /** Cria uma nova atividade (coluna) na turma. Usa a primeira coluna livre ou insere antes dos totais. */
 function novaAtividade(nomeAba, tipo, titulo, data) {
-  if (!titulo || !String(titulo).trim()) throw new Error('Informe o título da atividade.');
+  titulo = String(titulo || '').trim();
   var x = exigirAba_(nomeAba);
   var aba = x.aba, L = x.L;
   var nAl = L.ultimaLinha - L.primeira + 1;
@@ -389,6 +480,11 @@ function novaAtividade(nomeAba, tipo, titulo, data) {
       var vazia = true;
       for (var r = 0; r < L.linhaData; r++) {
         if (String(L.cab[r][c - 1]).trim()) { vazia = false; break; }
+      }
+      if (vazia) {
+        // pula colunas com lista suspensa que não é FEZ / NÃO FEZ (ex.: PRESENTE / AUSENTE)
+        var dvc = aba.getRange(L.primeira, c).getDataValidation();
+        if (dvc && !dvTemFez_(dvc)) vazia = false;
       }
       if (vazia) {
         // só vale se nenhum aluno já tiver registro nessa coluna
@@ -413,9 +509,39 @@ function novaAtividade(nomeAba, tipo, titulo, data) {
         cabOrigem.copyTo(aba.getRange(1, alvo, L.linhaData, 1), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
       }
     }
-    aba.getRange(1, alvo).setValue(tipo || 'Caderno');
-    if (L.linhaData >= 3) aba.getRange(2, alvo).setValue(String(titulo).trim());
+    formatarCabecalho_(aba, L, alvo);
+    aba.getRange(1, alvo).setValue(String(tipo || ''));
+    gravarTitulo_(aba, L, alvo, titulo);
     var celData = aba.getRange(L.linhaData, alvo);
+    celData.setNumberFormat('@');
+    celData.setValue(data || '');
+    // garante a lista suspensa FEZ / NÃO FEZ nas células dos alunos desta coluna
+    var rngAl = aba.getRange(L.primeira, alvo, nAl, 1);
+    var dvs0 = rngAl.getDataValidations();
+    if (!dvs0.some(function (r) { return r[0]; })) {
+      rngAl.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['FEZ', 'NÃO FEZ'], true).setAllowInvalid(true).build());
+    }
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+  return getTurma(nomeAba);
+}
+
+/** Edita tipo, título e data de uma atividade já criada (cabeçalho da coluna). */
+function editarAtividade(nomeAba, coluna, tipo, titulo, data) {
+  titulo = String(titulo || '').trim();
+  var x = exigirAba_(nomeAba);
+  var aba = x.aba, L = x.L;
+  coluna = Number(coluna);
+  if (!colunaGravavel_(aba, L, coluna)) throw new Error('Esta coluna não pode ser alterada.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    formatarCabecalho_(aba, L, coluna);
+    aba.getRange(1, coluna).setValue(String(tipo || ''));
+    gravarTitulo_(aba, L, coluna, titulo);
+    var celData = aba.getRange(L.linhaData, coluna);
     celData.setNumberFormat('@');
     celData.setValue(data || '');
     SpreadsheetApp.flush();
@@ -423,6 +549,82 @@ function novaAtividade(nomeAba, tipo, titulo, data) {
     lock.releaseLock();
   }
   return getTurma(nomeAba);
+}
+
+/** Acrescenta um aluno ao fim da lista da aba (copia formato, lista suspensa e fórmulas da última linha). */
+function novoAluno(nomeAba, nome) {
+  nome = String(nome || '').replace(/\s+/g, ' ').trim();
+  if (!nome) throw new Error('Informe o nome do aluno.');
+  var x = exigirAba_(nomeAba);
+  var aba = x.aba, L = x.L;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var A = analisar_(aba, L);
+    if (!A.alunos.length) throw new Error('Não encontrei alunos nesta aba.');
+    var existe = A.alunos.some(function (a) { return a.nome.toUpperCase() === nome.toUpperCase(); });
+    if (existe) throw new Error('Já existe um aluno com esse nome nesta aba.');
+    var ult = A.alunos[A.alunos.length - 1];
+    aba.insertRowAfter(ult.row);
+    var nova = ult.row + 1;
+    // copia formato, validação e fórmulas dos totais da linha anterior
+    aba.getRange(ult.row, 1, 1, L.ultimaCol).copyTo(aba.getRange(nova, 1, 1, L.ultimaCol), SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
+    // limpa os registros FEZ / NÃO FEZ copiados
+    A.cols.forEach(function (c) { aba.getRange(nova, c).clearContent(); });
+    if (L.numerada) aba.getRange(nova, 1).setValue(Number(ult.num) + 1);
+    aba.getRange(nova, 2).setValue(nome);
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+  return getTurma(nomeAba);
+}
+
+/**
+ * DIAGNÓSTICO: rode esta função no editor do Apps Script (menu Executar) e envie o texto do "Registro de execução".
+ * Edite a linha abaixo com o nome exato da aba e o número da coluna da atividade (C = 3, D = 4 ...).
+ */
+function diagnostico() {
+  var NOME_ABA = '6ºAno A (Wanda)';   // <- troque pelo nome da aba com problema
+  var COLUNA = 3;                     // <- troque pelo número da coluna da atividade
+  var aba = planilha_().getSheetByName(NOME_ABA);
+  if (!aba) { Logger.log('Aba não encontrada. Abas: ' + planilha_().getSheets().map(function (s) { return '[' + s.getName() + ']'; }).join(' ')); return; }
+  var L = layout_(aba);
+  if (!L) { Logger.log('Layout não reconhecido.'); return; }
+  var A = analisar_(aba, L);
+  Logger.log('Primeira linha de aluno: ' + L.primeira + ' | linha da data: ' + L.linhaData + ' | última linha: ' + L.ultimaLinha + ' | última coluna: ' + L.ultimaCol);
+  Logger.log('Alunos lidos: ' + A.alunos.length + ' | colunas de atividade: ' + A.cols.join(','));
+  Logger.log('Coluna ' + COLUNA + ' gravável? ' + colunaGravavel_(aba, L, COLUNA));
+  var cab = []; for (var r = 0; r < L.linhaData; r++) cab.push('[' + String(L.cab[r][COLUNA - 1]) + ']');
+  Logger.log('Cabeçalho da coluna: ' + cab.join(' '));
+  var cel = aba.getRange(L.primeira, COLUNA);
+  Logger.log('Célula do 1º aluno: valor=[' + cel.getValue() + '] fórmula=[' + cel.getFormula() + ']');
+  Logger.log('Rótulos: ' + JSON.stringify(rotulos_(aba, L, COLUNA)));
+  var prot = aba.getProtections(SpreadsheetApp.ProtectionType.RANGE).concat(aba.getProtections(SpreadsheetApp.ProtectionType.SHEET));
+  Logger.log('Proteções na aba: ' + prot.length + (prot.length ? ' (' + prot.map(function (p) { return p.getDescription() + ' canEdit=' + p.canEdit(); }).join('; ') + ')' : ''));
+  try {
+    var teste = aba.getRange(A.alunos[0].row, COLUNA), v = teste.getValue();
+    teste.setValue(v); // regrava o mesmo valor, sem alterar nada
+    Logger.log('Teste de gravação: OK');
+  } catch (e) { Logger.log('Teste de gravação FALHOU: ' + e.message); }
+}
+
+/** DIAGNÓSTICO GERAL: rode no editor; mostra, para cada aba da lista, o que o app entende e onde falha. */
+function diagnosticoTurmas() {
+  var nomes = planilha_().getSheets().map(function (s) { return s.getName(); }).filter(function (n) { return /^\s*(2|3)/.test(n); });
+  nomes.forEach(function (nome) {
+    try {
+      var aba = planilha_().getSheetByName(nome), L = layout_(aba);
+      if (!L) { Logger.log('[' + nome + '] layout não reconhecido'); return; }
+      var A = analisar_(aba, L);
+      Logger.log('[' + nome + '] 1ª linha aluno=' + L.primeira + ' linha data=' + L.linhaData + ' totais a partir da col ' + L.fim + ' | alunos=' + A.alunos.length + ' | colunas atividade=' + A.cols.join(','));
+      var d = getTurma(nome);
+      Logger.log('   getTurma OK: ' + d.atividades.length + ' atividades; título lido: ' + d.atividades.map(function (a) { return '[' + a.tipo + '|' + a.titulo + '|' + a.data + ']'; }).join(' '));
+      A.cols.slice(0, 3).forEach(function (c) { Logger.log('   col ' + c + ' gravável=' + colunaGravavel_(aba, L, c) + ' rótulos=' + JSON.stringify(rotulos_(aba, L, c))); });
+      var prot = aba.getProtections(SpreadsheetApp.ProtectionType.RANGE).concat(aba.getProtections(SpreadsheetApp.ProtectionType.SHEET));
+      Logger.log('   proteções=' + prot.length);
+    } catch (e) { Logger.log('[' + nome + '] ERRO: ' + e.message); }
+  });
 }
 
 /* ---------- Novo bimestre ---------- */
