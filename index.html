@@ -384,7 +384,7 @@
       <option>Outro</option>
     </select>
     <label for="nTitulo">Título</label>
-    <input type="text" id="nTitulo" placeholder="Ex.: Aula 3 - Sistema Respiratório" autocomplete="off">
+    <input type="text" id="nTitulo" placeholder="Opcional - pode ficar em branco" autocomplete="off">
     <label for="nData">Data</label>
     <input type="date" id="nData">
     <div class="acts">
@@ -980,7 +980,6 @@
   $('formNova').addEventListener('submit', function(ev){
     ev.preventDefault();
     var titulo = $('nTitulo').value.trim();
-    if(!titulo){ toast('Informe o título da atividade.'); return; }
     var dv = $('nData').value; var data = dv ? dv.split('-').reverse().join('/') : '';
     var btn = $('nSalva');
     if(modoEdita){
