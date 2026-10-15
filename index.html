@@ -392,7 +392,8 @@
     <label for="nTitulo">Título</label>
     <input type="text" id="nTitulo" placeholder="Opcional - pode ficar em branco" autocomplete="off">
     <label for="nData">Data</label>
-    <input type="date" id="nData">
+    <input type="date" id="nData" hidden>
+    <button class="btn block" type="button" id="nDataBtn" style="justify-content:flex-start">Sem data</button>
     <button class="btn" type="button" id="nLimpaData" style="margin-top:6px">Limpar data (deixar sem data)</button>
     <div class="acts">
       <button class="btn" type="button" id="nCancela">Cancelar</button>
@@ -960,6 +961,11 @@
     $('cGrid').addEventListener('click', function(ev){
       var b = ev.target.closest('.dd'); if(!b) return;
       var novo = new Date(calV.y, calV.m, Number(b.dataset.d));
+      if(calModo){   /* escolhendo a data no campo da atividade: tocar no dia marcado desmarca */
+        var igual = calSel && calSel.toDateString()===novo.toDateString();
+        $('nData').value = igual ? '' : novo.getFullYear()+'-'+p2(novo.getMonth()+1)+'-'+p2(novo.getDate());
+        syncData(); dlgCal.close(); return;
+      }
       if(calSel && calSel.toDateString()===novo.toDateString()){   /* tocar no dia já selecionado desmarca: fica sem data */
         calSel = null; resumoCal(); desenharCal(); dlgCal.close();
         var at = ((estado.dados && estado.dados.atividades) || []).filter(function(x){ return x.col===estado.col; })[0];
@@ -1003,7 +1009,7 @@
   $('btnNova').addEventListener('click', function(){
     if(!estado.turma) return;
     modoEdita = false; $('nTituloDlg').textContent='Nova atividade'; $('nSalva').textContent='Criar atividade';
-    $('nTitulo').value=''; $('nData').value = calSel ? calSel.getFullYear()+'-'+p2(calSel.getMonth()+1)+'-'+p2(calSel.getDate()) : '';
+    $('nTitulo').value=''; $('nData').value = calSel ? calSel.getFullYear()+'-'+p2(calSel.getMonth()+1)+'-'+p2(calSel.getDate()) : ''; syncData();
     dlg.showModal(); $('nTitulo').focus();
   });
   var modoEdita = false;
@@ -1017,10 +1023,20 @@
     st.value = a.tipo || '';
     $('nTitulo').value = a.titulo || '';
     var m = String(a.data||'').match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
-    $('nData').value = m ? ((m[3]? (m[3].length===2?'20'+m[3]:m[3]) : String(new Date().getFullYear()))+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2)) : '';
+    $('nData').value = m ? ((m[3]? (m[3].length===2?'20'+m[3]:m[3]) : String(new Date().getFullYear()))+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2)) : ''; syncData();
     dlg.showModal(); $('nTitulo').focus();
   });
-  $('nLimpaData').addEventListener('click', function(){ $('nData').value=''; });
+  function syncData(){ var v=$('nData').value; $('nDataBtn').textContent = v ? v.split('-').reverse().join('/') : 'Sem data (toque para escolher)'; }
+  $('nLimpaData').addEventListener('click', function(){ $('nData').value=''; syncData(); });
+  var calModo = false, calBackup = null;
+  $('nDataBtn').addEventListener('click', function(){
+    var v = $('nData').value, m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    calBackup = calSel; calModo = true;
+    calSel = m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : null;
+    var rf = calSel || new Date(); calV = {y:rf.getFullYear(), m:rf.getMonth()};
+    desenharCal(); $('dlgCal').showModal();
+  });
+  $('dlgCal').addEventListener('close', function(){ if(calModo){ calSel = calBackup; calModo = false; resumoCal(); } });
   $('nCancela').addEventListener('click', function(){ dlg.close(); });
   $('formNova').addEventListener('submit', function(ev){
     ev.preventDefault();
