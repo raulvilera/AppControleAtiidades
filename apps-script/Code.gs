@@ -443,7 +443,7 @@ function ajustarFonteCelula_(aba, cel, texto, maxFonte, minFonte) {
     var palavras = texto.split(/\s+/), maior = 0;
     palavras.forEach(function (p) { if (p.length > maior) maior = p.length; });
     function linhasPara(t) {
-      var porLinha = Math.max(1, Math.floor(larg / (t * 0.62)));
+      var porLinha = Math.max(1, Math.floor(larg / (t * 1.333 * 0.62)));
       if (maior > porLinha) return 999;          // a palavra mais longa precisa caber inteira
       var linhas = 1, atual = 0;
       palavras.forEach(function (p) {
@@ -453,20 +453,22 @@ function ajustarFonteCelula_(aba, cel, texto, maxFonte, minFonte) {
       return linhas;
     }
     var escolhido = 0;
-    for (var t = maxFonte; t >= minFonte; t--) {
-      if (linhasPara(t) * t * 1.3 <= alt) { escolhido = t; break; }
+    for (var t = maxFonte; t >= Math.max(minFonte, 6); t--) {
+      if (linhasPara(t) * t * 1.333 * 1.25 <= alt) { escolhido = t; break; }
     }
     if (!escolhido) {
-      escolhido = minFonte;
-      var l = linhasPara(minFonte);
-      if (l < 999) {                              // aumenta a altura da última linha da célula (máx. 70 px)
-        var falta = l * minFonte * 1.3 + 4 - (alt + 4);
-        var rr = r1, novaAlt = Math.min(70, aba.getRowHeight(rr) + Math.ceil(falta));
+      // nada cabe na altura atual: usa a maior letra (mín. 6, ou 5 se a palavra for longa) cuja palavra mais longa caiba e aumenta a altura da linha
+      for (var t2 = maxFonte; t2 >= minFonte; t2--) { if (linhasPara(t2) < 999 && (t2 <= 6)) { escolhido = t2; break; } }
+      if (!escolhido) escolhido = minFonte;
+      var l = linhasPara(escolhido);
+      if (l < 999) {
+        var falta = l * escolhido * 1.333 * 1.25 + 4 - (alt + 4);
+        var rr = r1, novaAlt = Math.min(80, aba.getRowHeight(rr) + Math.ceil(falta));
         if (novaAlt > aba.getRowHeight(rr)) aba.setRowHeight(rr, novaAlt);
       }
     }
     cel.setFontSize(escolhido).setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
-  } catch (e) { /* ajuste de fonte é opcional */ }
+  } catch (e) { Logger.log('ajustarFonteCelula_: ' + e.message); }
 }
 
 /** Ajusta tipo, título e data de uma atividade para caberem nas células do cabeçalho. */
