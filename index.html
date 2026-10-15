@@ -322,6 +322,7 @@
   <label for="planilha">Planilha</label>
   <select id="planilha"></select>
   <div class="acts"><button class="btn block" type="button" id="btnAluno">+ Novo aluno nesta turma</button></div>
+  <div class="acts"><button class="btn block" type="button" id="btnLimpa">Desmarcar todos desta atividade (mantém título e data)</button></div>
   <div class="acts" style="justify-content:space-between">
     <button class="btn" type="button" id="mFecha">Fechar</button>
     <button class="btn" type="button" id="btnSom">Som</button>
@@ -811,6 +812,23 @@
       estado.pendentes--;
       itens.forEach(function(it){ alunoPorLinha(it.linha).valores[col]=''; });
       desenhar(); sub('Falha ao salvar'); mostrarErro('Não salvou o registro: '+e.message); toast('Não salvou: '+e.message);
+    });
+  });
+
+  $('btnLimpa').addEventListener('click', function(){
+    var d = estado.dados; if(!d || estado.col==null) return;
+    var col = estado.col, aba = estado.turma;
+    var itens = d.alunos.filter(function(a){return valorEm(a,col)!=='';}).map(function(a){return {linha:a.row, valor:''};});
+    if(!itens.length){ toast('Nenhum registro para desmarcar.'); return; }
+    if(!confirm('Desmarcar '+itens.length+' registros desta atividade? O título e a data continuam.')) return;
+    var ant = {}; itens.forEach(function(it){ var al=alunoPorLinha(it.linha); ant[it.linha]=al.valores[col]; al.valores[col]=''; });
+    dlgMenu.close(); clique('limpa'); desenhar(); sub('Salvando...');
+    estado.edicoes++; estado.pendentes++;
+    run('salvarLote', aba, col, itens).then(function(){ estado.pendentes--; sub('Salvo às '+hora()); toast(itens.length+' registros desmarcados'); })
+    .catch(function(e){
+      estado.pendentes--;
+      itens.forEach(function(it){ alunoPorLinha(it.linha).valores[col]=ant[it.linha]; });
+      desenhar(); sub('Falha ao salvar'); mostrarErro('Não desmarcou: '+e.message); toast('Não salvou: '+e.message);
     });
   });
 
