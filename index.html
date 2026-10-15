@@ -900,11 +900,13 @@
   var calSel = new Date(), calV = {y:calSel.getFullYear(), m:calSel.getMonth()};
   function chave(d){ return p2(d.getDate())+'/'+p2(d.getMonth()+1); }
   function resumoCal(){
+    if(!calSel){ $('calTxt').textContent='Sem data'; $('calSub').textContent=''; return; }
     var f = feriados(calSel.getFullYear())[chave(calSel)];
     $('calTxt').textContent = SEMANA[calSel.getDay()].slice(0,3).replace(/^./,function(c){return c.toUpperCase();})+' '+p2(calSel.getDate())+'/'+p2(calSel.getMonth()+1)+'/'+calSel.getFullYear();
     $('calSub').textContent = f ? '· '+f.nome : '';
   }
   function infoCal(){
+    if(!calSel){ $('cInfo').innerHTML='<b>Nenhuma data selecionada</b><br>Toque em um dia para escolher.'; return; }
     var f = feriados(calSel.getFullYear())[chave(calSel)], w = calSel.getDay();
     var h = '<b>'+p2(calSel.getDate())+'/'+p2(calSel.getMonth()+1)+'/'+calSel.getFullYear()+' · '+SEMANA[w]+'</b><br>';
     if(f) h += esc(f.nome)+(f.pf?' (ponto facultativo / comemorativo)':' (feriado)');
@@ -923,13 +925,14 @@
       var dt = new Date(calV.y,calV.m,d), f = fm[chave(dt)], w = dt.getDay();
       var c = 'dd'+(f ? (f.pf?' pf':' fer') : (w===0||w===6?' wk':''));
       if(dt.toDateString()===hj.toDateString()) c += ' hj';
-      if(dt.toDateString()===calSel.toDateString()) c += ' sel';
+      if(calSel && dt.toDateString()===calSel.toDateString()) c += ' sel';
       h += '<button type="button" class="'+c+'" data-d="'+d+'"'+(f?' title="'+esc(f.nome)+'"':'')+'>'+d+'</button>';
     }
     $('cGrid').innerHTML = h;
     infoCal();
   }
   function irParaAtividadeDoDia(){
+    if(!calSel) return false;
     var d = calSel, dd=p2(d.getDate()), mm=p2(d.getMonth()+1), aa=String(d.getFullYear());
     var ats = (estado.dados && estado.dados.atividades) || [];
     for(var i=0;i<ats.length;i++){
@@ -947,7 +950,7 @@
     for(i=0;i<12;i++){ o=document.createElement('option'); o.value=i; o.textContent=MESES[i]; sm.appendChild(o); }
     for(i=a0-3;i<=a0+3;i++){ o=document.createElement('option'); o.value=i; o.textContent=i; sa.appendChild(o); }
     resumoCal();
-    $('calBtn').addEventListener('click', function(){ calV = {y:calSel.getFullYear(), m:calSel.getMonth()}; desenharCal(); dlgCal.showModal(); });
+    $('calBtn').addEventListener('click', function(){ var rf = calSel || new Date(); calV = {y:rf.getFullYear(), m:rf.getMonth()}; desenharCal(); dlgCal.showModal(); });
     $('cFecha').addEventListener('click', function(){ dlgCal.close(); });
     $('cHoje').addEventListener('click', function(){ calSel = new Date(); calV = {y:calSel.getFullYear(), m:calSel.getMonth()}; resumoCal(); desenharCal(); });
     $('cPrev').addEventListener('click', function(){ calV.m--; if(calV.m<0){calV.m=11;calV.y--;} if(calV.y<a0-3){calV.y=a0-3;calV.m=0;} desenharCal(); });
@@ -956,7 +959,11 @@
     sa.addEventListener('change', function(){ calV.y=Number(sa.value); desenharCal(); });
     $('cGrid').addEventListener('click', function(ev){
       var b = ev.target.closest('.dd'); if(!b) return;
-      calSel = new Date(calV.y, calV.m, Number(b.dataset.d));
+      var novo = new Date(calV.y, calV.m, Number(b.dataset.d));
+      if(calSel && calSel.toDateString()===novo.toDateString()){   /* tocar no dia já selecionado desmarca: fica sem data */
+        calSel = null; resumoCal(); desenharCal(); dlgCal.close(); toast('Data desmarcada'); return;
+      }
+      calSel = novo;
       resumoCal(); dlgCal.close(); irParaAtividadeDoDia();
     });
     medirCabecalho();
@@ -985,7 +992,7 @@
   $('btnNova').addEventListener('click', function(){
     if(!estado.turma) return;
     modoEdita = false; $('nTituloDlg').textContent='Nova atividade'; $('nSalva').textContent='Criar atividade';
-    $('nTitulo').value=''; $('nData').value = new Date().toISOString().slice(0,10);
+    $('nTitulo').value=''; $('nData').value = calSel ? calSel.getFullYear()+'-'+p2(calSel.getMonth()+1)+'-'+p2(calSel.getDate()) : '';
     dlg.showModal(); $('nTitulo').focus();
   });
   var modoEdita = false;
